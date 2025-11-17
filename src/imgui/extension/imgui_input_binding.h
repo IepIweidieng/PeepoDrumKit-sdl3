@@ -1,7 +1,8 @@
 #pragma once
 #include "core_types.h"
-#include "imgui/3rdparty/imgui.h"
-#include "imgui/3rdparty/imgui_internal.h"
+#include <imgui.h>
+#include <imgui_internal.h>
+
 #include <string>
 
 enum class InputBindingType : u8 { None, Keyboard, Mouse, Count };

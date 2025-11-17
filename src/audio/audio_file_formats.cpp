@@ -1,5 +1,4 @@
 #include "audio_file_formats.h"
-#include "core_io.h"
 
 #define DR_MP3_IMPLEMENTATION
 #include <dr_libs/dr_mp3.h>
@@ -10,14 +9,9 @@
 #define DR_WAV_IMPLEMENTATION
 #include <dr_libs/dr_wav.h>
 
-// #define STB_VORBIS_NO_PUSHDATA_API
-// #define STB_VORBIS_NO_PULLDATA_API
-// #define STB_VORBIS_NO_STDIO
-// #include <stb/stb_vorbis.c>
-
 // TODO: Forward declare because visual studio is having a stroke parsing the C header (something about the typedef union { ... } Floor; ???)
 //		 even though it was working perfectly fine in a different C++ project before :PeepoShrug:
-extern "C" int stb_vorbis_decode_memory(const unsigned char* mem, int len, int* channels, int* sample_rate, short** output);
+extern "C" int stb_vorbis_decode_memory(const u8 *mem, int len, int *channels, int *sample_rate, short **output);
 
 namespace Audio
 {

@@ -213,7 +213,7 @@ namespace Audio
 		friend Voice;
 
 		struct Impl;
-		std::unique_ptr<Impl> impl = nullptr;
+		std::unique_ptr<Impl> impl; // Initialized in constructor
 	};
 
 	// NOTE: Single global instance

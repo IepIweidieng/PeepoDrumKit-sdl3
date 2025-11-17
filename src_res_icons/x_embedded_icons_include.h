@@ -11,10 +11,10 @@
 struct EmbeddedIcon { cstr Name; ImWchar Codepoint; ivec2 Size; const u32 OffsetIntoPixelData; };
 static constexpr EmbeddedIcon EmbeddedIcons[] =
 {
-	{ u8"DankHug", static_cast<ImWchar>(0xE000), { 112, 112 }, 0x0000 },
-	{ u8"FeelsOkayMan", static_cast<ImWchar>(0xE001), { 112, 112 }, 0x3100 },
-	{ u8"PeepoCoffeeBlonket", static_cast<ImWchar>(0xE002), { 128, 128 }, 0x6200 },
-	{ u8"PeepoHappy", static_cast<ImWchar>(0xE003), { 112, 112 }, 0xA200 },
+	{ "DankHug", static_cast<ImWchar>(0xE000), { 112, 112 }, 0x0000 },
+	{ "FeelsOkayMan", static_cast<ImWchar>(0xE001), { 112, 112 }, 0x3100 },
+	{ "PeepoCoffeeBlonket", static_cast<ImWchar>(0xE002), { 128, 128 }, 0x6200 },
+	{ "PeepoHappy", static_cast<ImWchar>(0xE003), { 112, 112 }, 0xA200 },
 };
 
 static constexpr u32 EmbeddedIconsPixelData[0xD300] = 

@@ -83,7 +83,7 @@ namespace CodeGen
 		for (const LoadedImage& it : loadedImages)
 		{
 			out.Line(std::string_view(b, sprintf_s(b,
-				"{ u8\"%s\", static_cast<ImWchar>(0x%04X), { %d, %d }, 0x%04X },",
+				"{ \"%s\", static_cast<ImWchar>(0x%04X), { %d, %d }, 0x%04X },",
 				it.Name.c_str(),
 				static_cast<u32>(it.Codepoint),
 				it.Width, it.Height,
