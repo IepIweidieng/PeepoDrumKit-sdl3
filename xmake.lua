@@ -1,21 +1,19 @@
 add_rules("mode.debug", "mode.release")
+set_policy("package.requires_lock", true)
 
 add_requires(
     "imgui 1.92.0-docking",
     {
         configs = {
-            dx11 = true,
-            win32 = true,
+            glfw = true,
+            opengl3 = true,
         }
     })
 add_requires(
     "stb 2025.03.14",
-    "thorvg v1.0-pre10"
+    "thorvg v1.0-pre10",
+    "bass24"
     )
-    
-if is_os("windows") then
-    add_requires("directxshadercompiler")
-end
 
 target("PeepoDrumKit")
     set_kind("binary")
@@ -38,12 +36,12 @@ target("PeepoDrumKit")
     add_includedirs("src/core")
     add_includedirs("src/peepodrumkit")
     add_includedirs("libs")
-    add_packages("imgui", "dr_libs", "stb", "thorvg")
+    add_packages("imgui", "dr_libs", "stb", "thorvg", "bass24")
     if is_os("windows") then
-        add_files("src/imgui/*.hlsl")
+        -- add_files("src/imgui/*.hlsl")
         add_syslinks("Shlwapi", "Shell32", "Ole32", "dxgi", "d3d11")
-        add_packages("directxshadercompiler")
-        add_rules("utils.hlsl2spv", {bin2c = true})
+        -- add_packages("directxshadercompiler")
+        -- add_rules("utils.hlsl2spv", {bin2c = true})
     end
     
     after_build(function () 
