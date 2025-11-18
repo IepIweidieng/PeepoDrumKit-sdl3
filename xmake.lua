@@ -12,7 +12,7 @@ add_requires(
 add_requires(
     "stb 2025.03.14",
     "thorvg v1.0-pre10",
-    "bass24"
+    "libsoundio"
     )
 
 target("PeepoDrumKit")
