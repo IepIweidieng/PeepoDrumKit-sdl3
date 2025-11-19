@@ -45,7 +45,7 @@ Rect FitInsideFixedAspectRatio(Rect rectToFitInside, vec2 targetSize)
 
 static constexpr Time RoundToMilliseconds(Time value) { return Time::FromSec((value.Seconds * 1000.0 + 0.5) * 0.001); }
 
-i32 Time::ToString(char* outBuffer, size_t bufferSize) const
+i32 Time::ToString(char *outBuffer, size_t bufferSize) const
 {
 	assert(outBuffer != nullptr && bufferSize >= sizeof(FormatBuffer::Data));
 
@@ -65,8 +65,8 @@ i32 Time::ToString(char* outBuffer, size_t bufferSize) const
 	const f64 sec = Mod(msRoundSecondsAbs, 60.0);
 	const f64 ms = (sec - Floor(sec)) * 1000.0;
 
-	const char signPrefix[2] = { (Seconds < 0.0) ? '-' : '\0', '\0' };
-	return sprintf_s(outBuffer, bufferSize, "%s%02d:%02d.%03d", signPrefix, static_cast<i32>(min), static_cast<i32>(sec), static_cast<i32>(ms));
+	const char signPrefix[2] = {(Seconds < 0.0) ? '-' : '\0', '\0'};
+	return snprintf(outBuffer, bufferSize, "%s%02d:%02d.%03d", signPrefix, static_cast<i32>(min), static_cast<i32>(sec), static_cast<i32>(ms));
 }
 
 Time::FormatBuffer Time::ToString() const
@@ -82,11 +82,19 @@ Time Time::FromString(cstr inBuffer)
 		return Time::Zero();
 
 	b8 isNegative = false;
-	if (inBuffer[0] == '-') { isNegative = true; inBuffer++; }
-	else if (inBuffer[0] == '+') { isNegative = false; inBuffer++; }
+	if (inBuffer[0] == '-')
+	{
+		isNegative = true;
+		inBuffer++;
+	}
+	else if (inBuffer[0] == '+')
+	{
+		isNegative = false;
+		inBuffer++;
+	}
 
 	i32 min = 0, sec = 0, ms = 0;
-	sscanf_s(inBuffer, "%02d:%02d.%03d", &min, &sec, &ms);
+	sscanf(inBuffer, "%02d:%02d.%03d", &min, &sec, &ms);
 
 	min = Clamp(min, 0, 59);
 	sec = Clamp(sec, 0, 59);
@@ -98,10 +106,19 @@ Time Time::FromString(cstr inBuffer)
 
 Date Date::GetToday()
 {
-	const time_t inTimeNow = ::time(nullptr); tm outDateNow;
+	const time_t inTimeNow = ::time(nullptr);
+	tm outDateNow;
+#ifdef __OS_WINDOW
 	const errno_t timeToDateError = ::localtime_s(&outDateNow, &inTimeNow);
 	if (timeToDateError != 0)
 		return Date::Zero();
+#else
+	const tm *localTimePtr = ::localtime(&inTimeNow);
+	if (localTimePtr == nullptr)
+		return Date::Zero();
+	else
+		outDateNow = *localTimePtr;
+#endif
 
 	Date result = {};
 	result.Year = static_cast<i16>(outDateNow.tm_year + 1900);
@@ -112,13 +129,13 @@ Date Date::GetToday()
 
 Date TestDateToday = Date::GetToday();
 
-i32 Date::ToString(char* outBuffer, size_t bufferSize, char separator) const
+i32 Date::ToString(char *outBuffer, size_t bufferSize, char separator) const
 {
 	assert(outBuffer != nullptr && bufferSize >= sizeof(FormatBuffer::Data));
 	const u32 yyyy = Clamp<u32>(Year, 0, 9999);
 	const u32 mm = Clamp<u32>(Month, 0, 12);
 	const u32 dd = Clamp<u32>(Day, 0, 31);
-	return sprintf_s(outBuffer, bufferSize, "%04u%c%02u%c%02u", yyyy, separator, mm, separator, dd);
+	return snprintf(outBuffer, bufferSize, "%04u%c%02u%c%02u", yyyy, separator, mm, separator, dd);
 }
 
 Date::FormatBuffer Date::ToString(char separator) const
@@ -136,7 +153,7 @@ Date Date::FromString(cstr inBuffer, char separator)
 	formatString[9] = separator;
 
 	u32 yyyy = 0, mm = 0, dd = 0;
-	sscanf_s(inBuffer, formatString, &yyyy, &mm, &dd);
+	sscanf(inBuffer, formatString, &yyyy, &mm, &dd);
 
 	Date result = {};
 	result.Year = static_cast<i16>(Clamp<u32>(yyyy, 0, 9999));
@@ -144,6 +161,8 @@ Date Date::FromString(cstr inBuffer, char separator)
 	result.Day = static_cast<i8>(Clamp<u32>(dd, 0, 31));
 	return result;
 }
+
+#ifdef __OS_WINDOW
 
 #include <Windows.h>
 
@@ -169,16 +188,42 @@ static struct Win32PerformanceCounterData
 
 CPUTime CPUTime::GetNow()
 {
-	return CPUTime { Win32GetPerformanceCounterTicksNow() - Win32GlobalPerformanceCounter.TicksOnProgramStartup };
+	return CPUTime{Win32GetPerformanceCounterTicksNow() - Win32GlobalPerformanceCounter.TicksOnProgramStartup};
 }
 
 CPUTime CPUTime::GetNowAbsolute()
 {
-	return CPUTime { Win32GetPerformanceCounterTicksNow() };
+	return CPUTime{Win32GetPerformanceCounterTicksNow()};
 }
 
-Time CPUTime::DeltaTime(const CPUTime& startTime, const CPUTime& endTime)
+Time CPUTime::DeltaTime(const CPUTime &startTime, const CPUTime &endTime)
 {
 	const i64 deltaTicks = (endTime.Ticks - startTime.Ticks);
 	return Time::FromSec(static_cast<f64>(deltaTicks) / static_cast<f64>(Win32GlobalPerformanceCounter.TicksPerSecond));
 }
+
+#else // __OS_WINDOW
+
+#include <time.h>
+
+CPUTime CPUTime::GetNow()
+{
+	timespec timeNow = {};
+	::clock_gettime(CLOCK_MONOTONIC, &timeNow);
+	return CPUTime{(static_cast<i64>(timeNow.tv_sec) * 1000000000LL) + static_cast<i64>(timeNow.tv_nsec)};
+}
+
+CPUTime CPUTime::GetNowAbsolute()
+{
+	timespec timeNow = {};
+	::clock_gettime(CLOCK_REALTIME, &timeNow);
+	return CPUTime{(static_cast<i64>(timeNow.tv_sec) * 1000000000LL) + static_cast<i64>(timeNow.tv_nsec)};
+}
+
+Time CPUTime::DeltaTime(const CPUTime &startTime, const CPUTime &endTime)
+{
+	const i64 deltaTicks = (endTime.Ticks - startTime.Ticks);
+	return Time::FromSec(static_cast<f64>(deltaTicks) * 0.000000001);
+}
+
+#endif // __OS_WINDOW

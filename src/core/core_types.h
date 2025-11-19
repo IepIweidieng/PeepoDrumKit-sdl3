@@ -10,6 +10,16 @@
 #include <sstream>
 #include <complex>
 #include <regex>
+#include <array>
+#include <string_view>
+
+#if !defined(sprintf_s)
+#define sprintf_s(data, ...) snprintf(data, sizeof(data), __VA_ARGS__)
+#endif
+
+#if !defined(vsprintf_s)
+#define vsprintf_s(data, ...) vsnprintf(data, sizeof(data), __VA_ARGS__)
+#endif
 
 using i8 = int8_t;
 using u8 = uint8_t;
@@ -61,6 +71,17 @@ using cstr = const char*;
 
 #include <assert.h>
 #include <type_traits>
+
+// Cross-compiler force inline keyword
+#ifndef __forceinline
+#  if defined(_MSC_VER)
+#    define __forceinline __forceinline
+#  elif defined(__GNUC__) || defined(__clang__)
+#    define __forceinline inline __attribute__((always_inline))
+#  else
+#    define __forceinline inline
+#  endif
+#endif
 
 // NOTE: Example: keep_or_static_cast<T>(value); to be used when T is a template parameter
 struct keep_deduced_t {};
