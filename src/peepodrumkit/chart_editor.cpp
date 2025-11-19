@@ -1437,11 +1437,13 @@ namespace PeepoDrumKit
 		fileDialog.InFilters = { { TJA::FilterName, TJA::FilterSpec }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
 
-		if (fileDialog.OpenSave() != Shell::FileDialogResult::OK)
-			return false;
+		// TODO: Reimplement this
+		// if (fileDialog.OpenSave() != Shell::FileDialogResult::OK)
+		// 	return false;
 
-		SaveChart(context, fileDialog.OutFilePath);
-		return true;
+		// SaveChart(context, fileDialog.OutFilePath);
+		// return true;
+		return false;
 	}
 
 	b8 ChartEditor::TrySaveChartOrOpenSaveAsDialog(ChartContext& context)
@@ -1605,11 +1607,13 @@ namespace PeepoDrumKit
 		fileDialog.InFilters = { { TJA::FilterName, TJA::FilterSpec }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
 
-		if (fileDialog.OpenRead() != Shell::FileDialogResult::OK)
-			return false;
+		// TODO: Reimplement this
+		// if (fileDialog.OpenRead() != Shell::FileDialogResult::OK)
+		// 	return false;
 
-		StartAsyncImportingChartFile(fileDialog.OutFilePath);
-		return true;
+		// StartAsyncImportingChartFile(fileDialog.OutFilePath);
+		// return true;
+		return false;
 	}
 
 	b8 ChartEditor::OpenLoadAudioFileDialog(Undo::UndoHistory& undo)
@@ -1619,11 +1623,13 @@ namespace PeepoDrumKit
 		fileDialog.InFilters = { { "Audio Files", "*.flac;*.ogg;*.mp3;*.wav" }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
 
-		if (fileDialog.OpenRead() != Shell::FileDialogResult::OK)
-			return false;
+		// TODO: Reimplement this
+		// if (fileDialog.OpenRead() != Shell::FileDialogResult::OK)
+		// 	return false;
 
-		SetAndStartLoadingChartSongFileName(fileDialog.OutFilePath, undo);
-		return true;
+		// SetAndStartLoadingChartSongFileName(fileDialog.OutFilePath, undo);
+		// return true;
+		return false;
 	}
 
 	b8 ChartEditor::OpenLoadJacketFileDialog(Undo::UndoHistory& undo)
@@ -1633,11 +1639,13 @@ namespace PeepoDrumKit
 		fileDialog.InFilters = { { "Image Files", "*.jpg;*.jpeg;*.png" }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
 
-		if (fileDialog.OpenRead() != Shell::FileDialogResult::OK)
-			return false;
+		// TODO: Reimplement this
+		// if (fileDialog.OpenRead() != Shell::FileDialogResult::OK)
+		// 	return false;
 
-		SetAndStartLoadingSongJacketFileName(fileDialog.OutFilePath, undo);
-		return true;
+		// SetAndStartLoadingSongJacketFileName(fileDialog.OutFilePath, undo);
+		// return true;
+		return false;
 	}
 
 	void ChartEditor::CheckOpenSaveConfirmationPopupThenCall(std::function<void()> onSuccess)

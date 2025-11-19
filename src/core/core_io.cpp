@@ -222,7 +222,7 @@ namespace Directory
 #if defined(_MSC_VER)
 		wchar_t path[FILENAME_MAX] = {0};
 		GetModuleFileNameW(nullptr, path, FILENAME_MAX);
-		return std::filesystem::path(path);
+		return std::filesystem::path(path).string();
 #else
 		char path[FILENAME_MAX];
 		ssize_t count = readlink("/proc/self/exe", path, FILENAME_MAX);
@@ -317,6 +317,7 @@ namespace Shell
 		// case IDYES: return MessageBoxResult::Yes;
 		// default: return MessageBoxResult::None;
 		// }
+		return MessageBoxResult::None;
 	}
 }
 

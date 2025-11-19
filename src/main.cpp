@@ -1,6 +1,6 @@
 #include "peepodrumkit/chart_editor_main.h"
 
-#if __OS_WINDOWS
+#if _WIN32
 
 #include <Windows.h>
 #include <fcntl.h>
@@ -11,19 +11,19 @@ static void Win32SetupConsoleMagic()
     ::SetConsoleOutputCP(CP_UTF8);
 }
 
-#endif // __OS_WINDOWS
+#endif // _WIN32
 
 #ifdef PEEPO_DEBUG
 
 int main(int, const char **)
 {
-#if __OS_WINDOWS
+#if _WIN32
     Win32SetupConsoleMagic();
-#endif // __OS_WINDOWS
+#endif // _WIN32
     return PeepoDrumKit::EntryPoint();
 }
 
-#elif __OS_WINDOWS // PEEPO_DEBUG
+#elif _WIN32 // PEEPO_DEBUG
 
 #include <Windows.h>
 static void Win32SetupConsoleMagic()
@@ -39,7 +39,7 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     return PeepoDrumKit::EntryPoint();
 }
 
-#else // __OS_WINDOWS
+#else // _WIN32
 
 int main(int, const char **)
 {
@@ -49,4 +49,4 @@ int main(int, const char **)
     return PeepoDrumKit::EntryPoint();
 }
 
-#endif // __OS_WINDOWS
+#endif // _WIN32
