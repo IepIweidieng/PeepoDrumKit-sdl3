@@ -1,80 +1,151 @@
 #include "core_string.h"
 #include <charconv>
-#include <Windows.h>
+#include <vector>
+#include <unicode/uchar.h>
+#include <unicode/ustring.h>
+#include <unicode/ucnv.h>
 
-static std::string Win32NarrowStdStringWithCodePage(std::wstring_view input, UINT win32CodePage)
+// ICU-based helpers: convert between std::wstring (platform wchar_t) and UTF-8
+static std::string WideToUTF8(std::wstring_view input)
 {
-	std::string output;
-	const int outputLength = ::WideCharToMultiByte(win32CodePage, 0, input.data(), static_cast<int>(input.size() + 1), nullptr, 0, nullptr, nullptr) - 1;
+	if (input.empty())
+		return {};
 
-	if (outputLength > 0)
+	UErrorCode status = U_ZERO_ERROR;
+
+	if (sizeof(wchar_t) == 2)
 	{
-		output.resize(outputLength);
-		::WideCharToMultiByte(win32CodePage, 0, input.data(), static_cast<int>(input.size()), output.data(), outputLength, nullptr, nullptr);
+		const UChar* u16 = reinterpret_cast<const UChar*>(input.data());
+		int32_t required = 0;
+		u_strToUTF8(nullptr, 0, &required, u16, static_cast<int32_t>(input.size()), &status);
+		if (!(status == U_BUFFER_OVERFLOW_ERROR || U_SUCCESS(status)))
+			return {};
+		status = U_ZERO_ERROR;
+		std::string out;
+		out.resize(required);
+		u_strToUTF8(out.data(), required, nullptr, u16, static_cast<int32_t>(input.size()), &status);
+		if (U_FAILURE(status))
+			return {};
+		return out;
 	}
+	else
+	{
+		// wchar_t is 4 bytes (UTF-32)
+		const UChar32* u32 = reinterpret_cast<const UChar32*>(input.data());
+		int32_t u16Len = 0;
+		u_strFromUTF32(nullptr, 0, &u16Len, u32, static_cast<int32_t>(input.size()), &status);
+		if (!(status == U_BUFFER_OVERFLOW_ERROR || U_SUCCESS(status)))
+			return {};
+		status = U_ZERO_ERROR;
+		std::vector<UChar> u16buf(u16Len);
+		u_strFromUTF32(u16buf.data(), u16Len, nullptr, u32, static_cast<int32_t>(input.size()), &status);
+		if (U_FAILURE(status))
+			return {};
 
-	return output;
+		int32_t utf8Len = 0;
+		u_strToUTF8(nullptr, 0, &utf8Len, u16buf.data(), u16Len, &status);
+		if (!(status == U_BUFFER_OVERFLOW_ERROR || U_SUCCESS(status)))
+			return {};
+		status = U_ZERO_ERROR;
+		std::string out;
+		out.resize(utf8Len);
+		u_strToUTF8(out.data(), utf8Len, nullptr, u16buf.data(), u16Len, &status);
+		if (U_FAILURE(status))
+			return {};
+		return out;
+	}
 }
 
-static std::wstring Win32WidenStdStringWithCodePage(std::string_view input, UINT win32CodePage)
+static std::wstring UTF8ToWide(std::string_view utf8)
 {
-	std::wstring utf16Output;
-	const int utf16Length = ::MultiByteToWideChar(win32CodePage, 0, input.data(), static_cast<int>(input.size() + 1), nullptr, 0) - 1;
+	if (utf8.empty())
+		return {};
 
-	if (utf16Length > 0)
+	UErrorCode status = U_ZERO_ERROR;
+	int32_t u16Len = 0;
+	u_strFromUTF8(nullptr, 0, &u16Len, utf8.data(), static_cast<int32_t>(utf8.size()), &status);
+	if (!(status == U_BUFFER_OVERFLOW_ERROR || U_SUCCESS(status)))
+		return {};
+	status = U_ZERO_ERROR;
+	std::vector<UChar> u16buf(u16Len);
+	u_strFromUTF8(u16buf.data(), u16Len, nullptr, utf8.data(), static_cast<int32_t>(utf8.size()), &status);
+	if (U_FAILURE(status))
+		return {};
+
+	if (sizeof(wchar_t) == 2)
 	{
-		utf16Output.resize(utf16Length);
-		::MultiByteToWideChar(win32CodePage, 0, input.data(), static_cast<int>(input.size()), utf16Output.data(), utf16Length);
+		std::wstring out;
+		out.resize(u16Len);
+		for (int32_t i = 0; i < u16Len; ++i)
+			out[i] = static_cast<wchar_t>(u16buf[i]);
+		return out;
 	}
+	else
+	{
+		// convert UTF-16 buffer to UTF-32
+		int32_t u32Len = 0;
+		u_strToUTF32(nullptr, 0, &u32Len, u16buf.data(), u16Len, &status);
+		if (!(status == U_BUFFER_OVERFLOW_ERROR || U_SUCCESS(status)))
+			return {};
+		status = U_ZERO_ERROR;
+		std::vector<UChar32> u32buf(u32Len);
+		u_strToUTF32(u32buf.data(), u32Len, nullptr, u16buf.data(), u16Len, &status);
+		if (U_FAILURE(status))
+			return {};
 
-	return utf16Output;
+		std::wstring out;
+		out.resize(u32Len);
+		for (int32_t i = 0; i < u32Len; ++i)
+			out[i] = static_cast<wchar_t>(u32buf[i]);
+		return out;
+	}
 }
 
 namespace UTF8
 {
 	std::string Narrow(std::wstring_view utf16Input)
 	{
-		return Win32NarrowStdStringWithCodePage(utf16Input, CP_UTF8);
+		return WideToUTF8(utf16Input);
 	}
 
 	std::wstring Widen(std::string_view utf8Input)
 	{
-		return Win32WidenStdStringWithCodePage(utf8Input, CP_UTF8);
+		return UTF8ToWide(utf8Input);
 	}
 
 	std::string FromShiftJIS(std::string_view shiftJISInput)
 	{
-		// HACK: Quite inefficient of course but should work just fine for converting small amounts of text here and there
+		// Convert Shift_JIS bytes -> wide -> UTF-8
 		return UTF8::Narrow(ShiftJIS::Widen(shiftJISInput));
 	}
 
 	WideArg::WideArg(std::string_view utf8Input)
 	{
-		// NOTE: Length **without** null terminator
-		convertedLength = ::MultiByteToWideChar(CP_UTF8, 0, utf8Input.data(), static_cast<int>(utf8Input.size() + 1), nullptr, 0) - 1;
+		// Convert UTF-8 to platform wstring then copy into stack/heap buffer
+		std::wstring converted = UTF8::Widen(utf8Input);
+		convertedLength = static_cast<int>(converted.size());
 		if (convertedLength <= 0)
 		{
 			stackBuffer[0] = L'\0';
 			return;
 		}
 
-		if (convertedLength < ArrayCount(stackBuffer))
+		if (convertedLength < static_cast<int>(std::size(stackBuffer)))
 		{
-			::MultiByteToWideChar(CP_UTF8, 0, utf8Input.data(), static_cast<int>(utf8Input.size()), stackBuffer, convertedLength);
+			::memcpy(stackBuffer, converted.data(), sizeof(wchar_t) * convertedLength);
 			stackBuffer[convertedLength] = L'\0';
 		}
 		else
 		{
-			// heapBuffer = std::make_unique<wchar_t[]>(convertedLength + 1);
 			heapBuffer = std::unique_ptr<wchar_t[]>(new wchar_t[convertedLength + 1]);
-			::MultiByteToWideChar(CP_UTF8, 0, utf8Input.data(), static_cast<int>(utf8Input.size()), heapBuffer.get(), convertedLength);
+			::memcpy(heapBuffer.get(), converted.data(), sizeof(wchar_t) * convertedLength);
 			heapBuffer[convertedLength] = L'\0';
 		}
 	}
 
 	const wchar_t* WideArg::c_str() const
 	{
-		return (convertedLength < ArrayCount(stackBuffer)) ? stackBuffer : heapBuffer.get();
+		return (convertedLength < static_cast<int>(std::size(stackBuffer))) ? stackBuffer : heapBuffer.get();
 	}
 }
 
@@ -82,22 +153,57 @@ namespace ShiftJIS
 {
 	// NOTE: According to https://docs.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
 	//		 932 | shift_jis | ANSI/OEM Japanese; Japanese (Shift-JIS)
-	static constexpr UINT CP_SHIFT_JIS = 932;
+	// ICU encoding name for Shift-JIS
+	static constexpr const char* ICU_SHIFT_JIS = "Shift_JIS";
 
 	std::string Narrow(std::wstring_view utf16Input)
 	{
-		return Win32NarrowStdStringWithCodePage(utf16Input, CP_SHIFT_JIS);
+		// Convert wide -> UTF-8, then UTF-8 -> Shift_JIS via ICU
+		const std::string utf8 = UTF8::Narrow(utf16Input);
+		if (utf8.empty())
+			return {};
+
+		UErrorCode status = U_ZERO_ERROR;
+		int32_t destCapacity = static_cast<int32_t>(utf8.size()) * 4 + 16;
+		std::string out;
+		out.resize(destCapacity);
+		int32_t actual = ucnv_convert(ICU_SHIFT_JIS, "UTF-8", out.data(), destCapacity, utf8.data(), static_cast<int32_t>(utf8.size()), &status);
+		if (U_FAILURE(status))
+			return {};
+		out.resize(actual);
+		return out;
 	}
 
 	std::wstring Widen(std::string_view utf8Input)
 	{
-		return Win32WidenStdStringWithCodePage(utf8Input, CP_SHIFT_JIS);
+		// Convert Shift_JIS -> UTF-8 via ICU, then UTF-8 -> wide
+		if (utf8Input.empty())
+			return {};
+		UErrorCode status = U_ZERO_ERROR;
+		int32_t destCapacity = static_cast<int32_t>(utf8Input.size()) * 4 + 16;
+		std::string tmp;
+		tmp.resize(destCapacity);
+		int32_t actual = ucnv_convert("UTF-8", ICU_SHIFT_JIS, tmp.data(), destCapacity, utf8Input.data(), static_cast<int32_t>(utf8Input.size()), &status);
+		if (U_FAILURE(status))
+			return {};
+		tmp.resize(actual);
+		return UTF8::Widen(tmp);
 	}
 
 	std::string FromUTF8(std::string_view utf8Input)
 	{
-		// HACK: Same problem as UTF8::FromShiftJIS() ...
-		return ShiftJIS::Narrow(UTF8::WideArg(utf8Input).c_str());
+		// Convert UTF-8 to Shift_JIS
+		if (utf8Input.empty())
+			return {};
+		UErrorCode status = U_ZERO_ERROR;
+		int32_t destCapacity = static_cast<int32_t>(utf8Input.size()) * 4 + 16;
+		std::string out;
+		out.resize(destCapacity);
+		int32_t actual = ucnv_convert(ICU_SHIFT_JIS, "UTF-8", out.data(), destCapacity, utf8Input.data(), static_cast<int32_t>(utf8Input.size()), &status);
+		if (U_FAILURE(status))
+			return {};
+		out.resize(actual);
+		return out;
 	}
 }
 

@@ -111,7 +111,7 @@ namespace Shell
 	};
 
 	constexpr std::string_view AllFilesFilterName = "All Files";
-	constexpr std::string_view AllFilesFilterSpec = "*.*";
+	constexpr std::string_view AllFilesFilterSpec = "*";
 
 	struct FileFilter
 	{
@@ -131,11 +131,10 @@ namespace Shell
 		std::vector<FileFilter> InFilters;
 		u32 InOutFilterIndex = 0;
 		void* InParentWindowHandle = nullptr;
-		std::vector<FileDialogItem> InOutCustomizeItems;
 		std::string OutFilePath;
 
-		FileDialogResult OpenRead();
-		FileDialogResult OpenSave();
-		FileDialogResult OpenSelectFolder();
+		b8 OpenRead();
+		b8 OpenSave();
+		b8 OpenSelectFolder();
 	};
 }
