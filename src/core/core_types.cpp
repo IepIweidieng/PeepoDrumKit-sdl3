@@ -162,7 +162,7 @@ Date Date::FromString(cstr inBuffer, char separator)
 	return result;
 }
 
-#ifdef __OS_WINDOW
+#ifdef _WIN32
 
 #include <Windows.h>
 
@@ -202,7 +202,7 @@ Time CPUTime::DeltaTime(const CPUTime &startTime, const CPUTime &endTime)
 	return Time::FromSec(static_cast<f64>(deltaTicks) / static_cast<f64>(Win32GlobalPerformanceCounter.TicksPerSecond));
 }
 
-#else // __OS_WINDOW
+#else // _WIN32
 
 #include <time.h>
 
@@ -226,4 +226,4 @@ Time CPUTime::DeltaTime(const CPUTime &startTime, const CPUTime &endTime)
 	return Time::FromSec(static_cast<f64>(deltaTicks) * 0.000000001);
 }
 
-#endif // __OS_WINDOW
+#endif // _WIN32

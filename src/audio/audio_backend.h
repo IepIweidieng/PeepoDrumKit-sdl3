@@ -30,7 +30,7 @@ namespace Audio
 		virtual b8 IsOpenRunning() const = 0;
 	};
 
-#ifdef __OS_WINDOWS
+#ifdef _WIN32
 	class WASAPIBackend : public IAudioBackend
 	{
 	public:
@@ -46,7 +46,7 @@ namespace Audio
 		struct Impl;
 		std::unique_ptr<Impl> impl;
 	};
-#endif // __OS_WINDOWS
+#endif // _WIN32
 
 	class LibSoundIOBackend : public IAudioBackend
 	{

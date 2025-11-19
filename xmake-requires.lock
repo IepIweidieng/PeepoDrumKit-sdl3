@@ -133,6 +133,14 @@
             },
             version = "2023.12.16"
         },
+        ["icu4c#f56260b5"] = {
+            repo = {
+                branch = "master",
+                commit = "de0ced6a54566244ad2e505722dbf049ced7f256",
+                url = "https://gitee.com/tboox/xmake-repo.git"
+            },
+            version = "77.1"
+        },
         ["imgui 1.92.0-docking#af0acc26"] = {
             repo = {
                 branch = "master",
