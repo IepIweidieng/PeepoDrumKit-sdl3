@@ -35,7 +35,7 @@ EmbeddedIconsList GetEmbeddedIconsList()
 	return EmbeddedIconsList{0};
 }
 
-#ifdef __OS_WINDOWS
+#ifdef _WIN32
 
 #include <windows.h>
 #include <bcrypt.h>
@@ -73,7 +73,7 @@ static void EnableWindowsHiResTimer(void)
 	}
 }
 
-#endif // __OS_WINDOWS
+#endif // _WIN32
 
 namespace ApplicationHost
 {
@@ -119,9 +119,9 @@ namespace ApplicationHost
 
 	i32 EnterProgramLoop(const StartupParam &startupParam, UserCallbacks userCallbacks)
 	{
-#ifdef __OS_WINDOWS
+#ifdef _WIN32
 		EnableWindowsHiResTimer();
-#endif // __OS_WINDOWS
+#endif // _WIN32
 
 		if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
 		{

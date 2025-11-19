@@ -11,17 +11,11 @@ add_requires(
         }
     })
 add_requires(
-    "icu4c",
-    {
-        configs = {
-            shared = false,
-        }
-    })
-add_requires(
     "stb 2025.03.14",
     "thorvg v1.0-pre10",
     "libsoundio",
-    "libsdl3"
+    "libsdl3",
+    "icu4c"
     )
 
 if is_os("windows") then -- Process Resource File (Icon)
@@ -35,11 +29,6 @@ if is_os("windows") then -- Process Resource File (Icon)
                 os.vrunv("windres", {sourcefile, "-o", targetfile})
             end, {files = sourcefile})
         end)
-end
-
-if not is_mode("debug") then
-    set_optimize("fastest")
-    set_policy("build.optimization.lto", true)
 end
     
 target("PeepoDrumKit")
@@ -55,6 +44,12 @@ target("PeepoDrumKit")
     add_files("src/imgui/extension/*.cpp")
     
     add_defines("IMGUI_USER_CONFIG=\"imgui/peepodrumkit_imconfig.h\"")
+
+    if not is_mode("debug") then
+        set_optimize("fastest")
+        set_policy("build.optimization.lto", true)
+    end
+
     if is_mode("debug") then
         add_defines("PEEPO_DEBUG=(1)", "PEEPO_RELEASE=(0)")
     else
@@ -68,13 +63,12 @@ target("PeepoDrumKit")
     if is_os("windows") then
         -- add_files("src/imgui/*.hlsl")
         add_files("src_res/Resource.rc")
-        add_defines("__OS_WINDOWS")
         add_syslinks("Shlwapi", "Shell32", "Ole32", "dxgi", "d3d11", "ntdll")
         -- add_packages("directxshadercompiler")
         -- add_rules("utils.hlsl2spv", {bin2c = true})
     end
     
-    after_build(function () 
-        os.cp("$(projectdir)/locales", "$(builddir)/$(plat)/$(arch)/$(mode)/")
-        os.cp("$(projectdir)/assets", "$(builddir)/$(plat)/$(arch)/$(mode)/")
+    after_build(function (target)
+        os.cp("$(projectdir)/locales", target:targetdir() .. "/")
+        os.cp("$(projectdir)/assets", target:targetdir() .. "/")
     end)

@@ -1,4 +1,4 @@
-#ifdef __OS_WINDOWS
+#ifdef _WIN32
 
 #include "audio_backend.h"
 #include "audio_common.h"
@@ -356,4 +356,4 @@ namespace Audio
 	b8 WASAPIBackend::IsOpenRunning() const { return impl->IsOpenRunning(); }
 }
 
-#endif // __OS_WINDOWS
+#endif // _WIN32
