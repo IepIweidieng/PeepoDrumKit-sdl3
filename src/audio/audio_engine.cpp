@@ -14,12 +14,14 @@ namespace Audio
 
 	static std::unique_ptr<IAudioBackend> CreateBackendInterface(Backend backend)
 	{
+#ifdef _WIN32
 		switch (backend)
 		{
 		case Backend::WASAPI_Shared:
 		case Backend::WASAPI_Exclusive:
 			return std::make_unique<WASAPIBackend>();
 		}
+#endif // _WIN32
 
 		assert(false);
 		return nullptr;

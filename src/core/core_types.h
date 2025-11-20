@@ -12,6 +12,8 @@
 #include <regex>
 #include <array>
 #include <string_view>
+#include <future>
+#include <chrono>
 
 #if !defined(sprintf_s)
 #define sprintf_s(data, ...) snprintf(data, sizeof(data), __VA_ARGS__)
@@ -21,6 +23,10 @@
 #define vsprintf_s(data, ...) vsnprintf(data, sizeof(data), __VA_ARGS__)
 #endif
 
+template<typename R>
+  bool future_is_ready(std::future<R> const& f)
+  { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }
+  
 using i8 = int8_t;
 using u8 = uint8_t;
 

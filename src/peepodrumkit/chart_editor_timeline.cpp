@@ -2,6 +2,7 @@
 #include "chart_editor_undo.h"
 #include "chart_editor_theme.h"
 #include "chart_editor_i18n.h"
+#include <iterator>
 
 namespace PeepoDrumKit
 {
