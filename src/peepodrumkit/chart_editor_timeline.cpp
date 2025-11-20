@@ -2246,6 +2246,29 @@ namespace PeepoDrumKit
 		auto &io = Gui::GetIO();
 
 		// NOTE: Mouse scroll / zoom
+#ifdef SDL_PLATFORM_MACOS
+		if (!ApproxmiatelySame(io.MouseWheelH, 0.0f))
+		{
+			vec2 scrollStep = vec2(io.KeyShift ? *Settings.General.TimelineScrollDistancePerMouseWheelTickFast : *Settings.General.TimelineScrollDistancePerMouseWheelTick);
+			scrollStep.y *= 0.75f;
+			if (*Settings.General.TimelineScrollInvertMouseWheel)
+				scrollStep.x *= -1.0f;
+
+			if (IsContentHeaderWindowHovered || IsContentWindowHovered)
+			{
+				if (io.KeyCtrl)
+					Camera.PositionTarget.y -= (io.MouseWheelH * scrollStep.y);
+				else
+					Camera.PositionTarget.x -= (io.MouseWheelH * scrollStep.x);
+			}
+		}
+		else if (!ApproxmiatelySame(io.MouseWheel, 0.0f))
+		{
+			const f32 zoomFactorX = *Settings.General.TimelineZoomFactorPerMouseWheelTick;
+			const f32 newZoomX = (io.MouseWheel > 0.0f) ? (Camera.ZoomTarget.x * zoomFactorX) : (Camera.ZoomTarget.x / zoomFactorX);
+			Camera.SetZoomTargetAroundLocalPivot(vec2(newZoomX, Camera.ZoomTarget.y), ScreenToLocalSpace(Gui::GetMousePos()));
+		}
+#else
 		if (!ApproxmiatelySame(io.MouseWheel, 0.0f))
 		{
 			vec2 scrollStep = vec2(io.KeyShift ? *Settings.General.TimelineScrollDistancePerMouseWheelTickFast : *Settings.General.TimelineScrollDistancePerMouseWheelTick);
@@ -2270,22 +2293,7 @@ namespace PeepoDrumKit
 				}
 			}
 		}
-		
-		if (!ApproxmiatelySame(io.MouseWheelH, 0.0f))
-		{
-			vec2 scrollStep = vec2(io.KeyShift ? *Settings.General.TimelineScrollDistancePerMouseWheelTickFast : *Settings.General.TimelineScrollDistancePerMouseWheelTick);
-			scrollStep.y *= 0.75f;
-			if (*Settings.General.TimelineScrollInvertMouseWheel)
-				scrollStep.x *= -1.0f;
-
-			if (IsContentHeaderWindowHovered || IsContentWindowHovered)
-			{
-				if (io.KeyCtrl)
-					Camera.PositionTarget.y -= (io.MouseWheel * scrollStep.y);
-				else
-					Camera.PositionTarget.x += (io.MouseWheel * scrollStep.x);
-			}
-		}
+#endif
 
 		// NOTE: Mouse wheel grab scroll
 		{
