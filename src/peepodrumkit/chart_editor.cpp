@@ -1616,7 +1616,7 @@ namespace PeepoDrumKit
 	b8 ChartEditor::OpenLoadAudioFileDialog(Undo::UndoHistory& undo)
 	{
 		fileDialog.InTitle = "Open Audio File";
-		fileDialog.InFilters = { { "Audio Files", "*.flac;*.ogg;*.mp3;*.wav" }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
+		fileDialog.InFilters = { { "Audio Files", "flac;ogg;mp3;wav" }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
 		fileDialog.onCallback = [&](Shell::FileDialogResult result)
 		{
@@ -1631,7 +1631,7 @@ namespace PeepoDrumKit
 	{
 		Shell::FileDialog fileDialog {};
 		fileDialog.InTitle = "Open Jacket File";
-		fileDialog.InFilters = { { "Image Files", "*.jpg;*.jpeg;*.png" }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
+		fileDialog.InFilters = { { "Image Files", "jpg;jpeg;png" }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
 		fileDialog.onCallback = [&](Shell::FileDialogResult result)
 		{
