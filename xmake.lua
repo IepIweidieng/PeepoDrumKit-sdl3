@@ -99,4 +99,8 @@ target("PeepoDrumKit")
     after_build(function (target)
         os.cp("$(projectdir)/locales", target:targetdir() .. "/")
         os.cp("$(projectdir)/assets", target:targetdir() .. "/")
+
+        if os.exists("$(projectdir)/assets_override") then
+            os.cp("$(projectdir)/assets_override/*", target:targetdir() .. "/assets")
+        end
     end)

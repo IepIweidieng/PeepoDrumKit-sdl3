@@ -4,6 +4,7 @@
 #include "chart_editor_widgets.h"
 #include "audio/audio_file_formats.h"
 #include "chart_editor_i18n.h"
+#include <cstddef>
 
 namespace PeepoDrumKit
 {
@@ -65,7 +66,7 @@ namespace PeepoDrumKit
 		SetChartDefaultSettingsAndCourses(context.Chart);
 
 		GlobalLastSetRequestExclusiveDeviceAccessAudioSetting = *Settings.Audio.RequestExclusiveDeviceAccess;
-		Audio::Engine.SetBackend(*Settings.Audio.RequestExclusiveDeviceAccess ? Audio::Backend::WASAPI_Exclusive : Audio::Backend::WASAPI_Shared);
+		Audio::Engine.SetBackend(*Settings.Audio.RequestExclusiveDeviceAccess ? Audio::Backend::PlatformExclusive : Audio::Backend::PlatformShared);
 		Audio::Engine.SetBufferFrameSize(*Settings.Audio.BufferFrameSize);
 		Audio::Engine.SetMasterVolume(0.75f);
 		if (*Settings.Audio.OpenDeviceOnStartup)
@@ -508,10 +509,10 @@ namespace PeepoDrumKit
 				Gui::EndMenu();
 			}
 
-			static constexpr Audio::Backend availableBackends[] = { Audio::Backend::WASAPI_Shared, Audio::Backend::WASAPI_Exclusive, };
+			static constexpr Audio::Backend availableBackends[] = { Audio::Backend::PlatformShared, Audio::Backend::PlatformExclusive, };
 			static constexpr auto backendToString = [](Audio::Backend backend) -> cstr
 			{
-				return (backend == Audio::Backend::WASAPI_Shared) ? "WASAPI Shared" : (backend == Audio::Backend::WASAPI_Exclusive) ? "WASAPI Exclusive" : "Invalid";
+				return (backend < Audio::Backend::Count) ? Audio::BackendNames[static_cast<size_t>(backend)] : "Invalid";
 			};
 
 			char performanceTextBuffer[64];
@@ -863,7 +864,7 @@ namespace PeepoDrumKit
 		// NOTE: Check for external changes made via the settings window
 		if (GlobalLastSetRequestExclusiveDeviceAccessAudioSetting != *Settings.Audio.RequestExclusiveDeviceAccess)
 		{
-			Audio::Engine.SetBackend(*Settings.Audio.RequestExclusiveDeviceAccess ? Audio::Backend::WASAPI_Exclusive : Audio::Backend::WASAPI_Shared);
+			Audio::Engine.SetBackend(*Settings.Audio.RequestExclusiveDeviceAccess ? Audio::Backend::PlatformExclusive : Audio::Backend::PlatformShared);
 			GlobalLastSetRequestExclusiveDeviceAccessAudioSetting = *Settings.Audio.RequestExclusiveDeviceAccess;
 		}
 		if (GlobalLastSetAudioBufferFrameSize != *Settings.Audio.BufferFrameSize)
