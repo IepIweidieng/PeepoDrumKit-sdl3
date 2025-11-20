@@ -16,14 +16,8 @@ namespace Audio
 	{
 		
 #ifdef _WIN32
-		switch (backend)
-		{
-		case Backend::WASAPI_Shared:
-		case Backend::WASAPI_Exclusive:
-			return std::make_unique<WASAPIBackend>();
-		}
+		return std::make_unique<WASAPIBackend>();
 #endif // _WIN32
-
 		// Use LibSoundIO as fallback/default
 		return std::make_unique<LibSoundIOBackend>();
 	}
@@ -516,7 +510,7 @@ namespace Audio
 		streamParam.SampleRate = OutputSampleRate;
 		streamParam.ChannelCount = OutputChannelCount;
 		streamParam.DesiredFrameCount = impl->TargetBufferFrameSize;
-		streamParam.ShareMode = (impl->CurrentBackendType == Backend::WASAPI_Exclusive) ? StreamShareMode::Exclusive : StreamShareMode::Shared;
+		streamParam.ShareMode = (impl->CurrentBackendType == Backend::PlatformExclusive) ? StreamShareMode::Exclusive : StreamShareMode::Shared;
 
 		if (impl->CurrentBackend == nullptr)
 			impl->CurrentBackend = CreateBackendInterface(impl->CurrentBackendType);
@@ -558,11 +552,11 @@ namespace Audio
 
 		OpenStartStream();
 
-		const b8 exclusiveAndFailedToStart = (impl->CurrentBackendType == Backend::WASAPI_Exclusive && !GetIsStreamOpenRunning());
+		const b8 exclusiveAndFailedToStart = (impl->CurrentBackendType == Backend::PlatformExclusive && !GetIsStreamOpenRunning());
 		if (exclusiveAndFailedToStart)
 		{
 			// NOTE: Because *any* audio is probably always better than *no* audio
-			SetBackend(Backend::WASAPI_Shared);
+			SetBackend(Backend::PlatformShared);
 			OpenStartStream();
 		}
 	}

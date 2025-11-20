@@ -82,19 +82,27 @@ namespace Audio
 
 	enum class Backend : u8
 	{
-		WASAPI_Shared,
-		WASAPI_Exclusive,
+		PlatformShared,
+		PlatformExclusive,
 		Count,
 		// TEMP: Switching to shared during early developement where there isn't actually any charting to do yet
 		// Default = WASAPI_Exclusive,
-		Default = WASAPI_Shared,
+		Default = PlatformShared,
 	};
-
+	
+#ifdef _WIN32
 	constexpr cstr BackendNames[EnumCount<Backend>] =
 	{
 		"WASAPI (Shared)",
 		"WASAPI (Exclusive)",
 	};
+#else
+	constexpr cstr BackendNames[EnumCount<Backend>] =
+	{
+		"LibSoundIO (Shared)",
+		"LibSoundIO (Raw / Exclusive)",
+	};
+#endif
 
 	enum class PanLaw : u8
 	{

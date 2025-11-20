@@ -6,7 +6,6 @@
 #include <imgui_impl_sdlgpu3.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
-#include "extension/imgui_input_binding.h"
 
 #include "core_io.h"
 #include "core_string.h"
@@ -84,21 +83,20 @@ namespace ApplicationHost
 	static constexpr cstr FontFilePath = "assets/NotoSansCJKjp-Regular.otf";
 
 	static constexpr ImVec4 clearColor = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);
-	static ImFont *currentFont = nullptr;
 
 	static void LoadFont(void)
 	{
 		auto &io = ImGui::GetIO();
-		if (currentFont != nullptr)
+		if (FontMain != nullptr)
 		{
-			io.Fonts->RemoveFont(currentFont);
-			currentFont = nullptr;
+			io.Fonts->RemoveFont(FontMain);
+			FontMain = nullptr;
 		}
 
 		std::string fontFilePath = "assets/" + FontMainFileNameCurrent;
 
-		currentFont = io.Fonts->AddFontFromFileTTF(fontFilePath.c_str(), 16.0f);
-		if (currentFont == nullptr)
+		FontMain = io.Fonts->AddFontFromFileTTF(fontFilePath.c_str(), 16.0f);
+		if (FontMain == nullptr)
 		{
 			std::cout << "Failed to load font file at: " << fontFilePath << std::endl;
 		}
@@ -220,10 +218,10 @@ namespace ApplicationHost
 			// Render here
 			{
 				BeforeRender();
-				if (currentFont != nullptr)
-					ImGui::PushFont(currentFont);
+				if (FontMain != nullptr)
+					ImGui::PushFont(FontMain);
 				userCallbacks.OnUpdate();
-				if (currentFont != nullptr)
+				if (FontMain != nullptr)
 					ImGui::PopFont();
 			}
 
