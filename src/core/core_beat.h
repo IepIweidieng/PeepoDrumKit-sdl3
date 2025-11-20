@@ -454,13 +454,13 @@ template <typename T>
 std::pair<size_t, b8> BeatSortedList<T>::InsertOrIgnore(const T& valueToInsert)
 {
 	b8 isInserted = true;
-	return { InsertOrFunc(valueToInsert, [&](...) { isInserted = false; }), isInserted };
+	return { InsertOrFunc(valueToInsert, [&](auto&&...) { isInserted = false; }), isInserted };
 }
 
 template <typename T>
 size_t BeatSortedList<T>::InsertOrUpdate(const T& valueToInsertOrUpdate)
 {
-	return InsertOrFunc(valueToInsertOrUpdate, [&](T& existing, ...) { existing = valueToInsertOrUpdate; });
+	return InsertOrFunc(valueToInsertOrUpdate, [&](T& existing, auto&&...) { existing = valueToInsertOrUpdate; });
 }
 
 template <typename T>

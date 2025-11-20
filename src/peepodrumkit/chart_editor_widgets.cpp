@@ -1929,7 +1929,7 @@ namespace PeepoDrumKit
 				// add new entry
 				Gui::Property::PropertyTextValueFunc(labelAdd, [&]
 				{
-					b8* pIsValid = Gui::GetStateStorage()->GetBoolRef(reinterpret_cast<ImGuiID>(pNewKey), keyFilter(newDefault));
+					b8* pIsValid = Gui::GetStateStorage()->GetBoolRef(Gui::GetID(reinterpret_cast<const void*>(pNewKey)), keyFilter(newDefault));
 
 					Gui::SetNextItemWidth(getInsertButtonWidth());
 					Gui::PushStyleColor(ImGuiCol_Text, *pIsValid ? Gui::GetColorU32(ImGuiCol_Text) : InputTextWarningTextColor);

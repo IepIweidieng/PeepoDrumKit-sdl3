@@ -2,6 +2,8 @@
 #include "core_types.h"
 #include <string>
 #include <string_view>
+#include <cstdarg>
+#include <cstring>
 
 // NOTE: Runs the danger of double evaluating the string expression but I'm starting to get really tired of manually typing out the size cast
 #define StrViewFmtString "%.*s"
@@ -31,6 +33,31 @@ inline void CopyStringViewIntoFixedBuffer(char* buffer, size_t bufferSize, std::
 	::memcpy(buffer, stringToCopy.data(), length);
 	buffer[length] = '\0';
 }
+
+// MSVC secure CRT compatibility shims for cross-platform builds
+template <size_t N>
+inline int strcat_s(char (&dest)[N], const char* src)
+{
+	size_t destlen = ::strnlen(dest, N);
+	size_t srclen = ::strlen(src);
+	size_t copylen = (srclen < (N - destlen - 1)) ? srclen : (N - destlen - 1);
+	if (copylen > 0)
+		::memcpy(dest + destlen, src, copylen);
+	dest[destlen + copylen] = '\0';
+	return 0;
+}
+
+template <size_t N>
+inline int strcpy_s(char (&dest)[N], const char* src)
+{
+	size_t srclen = ::strlen(src);
+	size_t copylen = (srclen < (N - 1)) ? srclen : (N - 1);
+	if (copylen > 0)
+		::memcpy(dest, src, copylen);
+	dest[copylen] = '\0';
+	return 0;
+}
+
 
 // NOTE: Following the "UTF-8 Everywhere" guidelines
 namespace UTF8
