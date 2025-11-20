@@ -338,23 +338,33 @@ namespace Shell
 	static void SDL_DialogCallback(void *userdata, const char *const *filelist, int filter)
 	{
 		auto dialog = reinterpret_cast<FileDialog *>(userdata);
-		if (filelist != nullptr)
+		if (dialog == nullptr)
+			return;
+		if (filelist == nullptr)
 		{
-			dialog->OutFilePath = std::string(filelist[0]);
-			dialog->onCallback(FileDialogResult::OK);
+			printf("Error opening file dialog: %s\n", SDL_GetError());
+			dialog->OutFilePath.clear();
+			dialog->onCallback(FileDialogResult::Error);
 		}
-		else
+		else if (*filelist == nullptr)
 		{
 			dialog->OutFilePath.clear();
 			dialog->onCallback(FileDialogResult::Cancel);
 		}
-		delete dialog;
+		else
+		{
+			dialog->OutFilePath = std::string(filelist[0]);
+			dialog->onCallback(FileDialogResult::OK);
+		}
 	}
 
 	static b8 CreateAndShowFileDialog(FileDialog &dialog, DialogType dialogType, DialogPickType pickType)
 	{
 		if (!SDL_IsMainThread())
+		{
+			printf("File dialog can only be opened from the main thread.\n");
 			return false;
+		}
 
 		auto props = SDL_CreateProperties();
 		if (!dialog.InTitle.empty())

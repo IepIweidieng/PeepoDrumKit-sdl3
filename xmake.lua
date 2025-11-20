@@ -1,5 +1,5 @@
 add_rules("mode.debug", "mode.release")
-set_policy("package.requires_lock", true)
+-- set_policy("package.requires_lock", true)
 
 add_requires(
     "imgui 1.92.0-docking",
