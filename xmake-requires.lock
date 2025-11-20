@@ -27,7 +27,7 @@
             },
             version = "2023.12.16"
         },
-        ["icu4c#a0c24696"] = {
+        ["icu4c#f56260b5"] = {
             repo = {
                 branch = "master",
                 commit = "de0ced6a54566244ad2e505722dbf049ced7f256",

@@ -11,7 +11,7 @@ namespace PeepoDrumKit
 			char buffer[512];
 			va_list args;
 			va_start(args, fmt);
-			onMessageFunc(std::string_view(buffer, _vsnprintf_s(buffer, ArrayCount(buffer), fmt, args)), userData);
+			onMessageFunc(std::string_view(buffer, vsnprintf(buffer, ArrayCount(buffer), fmt, args)), userData);
 			va_end(args);
 		};
 
@@ -329,7 +329,7 @@ namespace PeepoDrumKit
 			outCourse.Metadata.Others = inCourse.OtherMetadata;
 
 			// TODO: Is this implemented correctly..? Need to have enough measures to cover every note/command and pad with empty measures up to the chart duration
-			// BUG: NOPE! "07 ƒQ[ƒ€ƒ~ƒ…[ƒWƒbƒN/003D. MagiCatz/MagiCatz.tja" for example still gets rounded up and then increased by a measure each time it gets saved
+			// BUG: NOPE! "07 ï¿½Qï¿½[ï¿½ï¿½ï¿½~ï¿½ï¿½ï¿½[ï¿½Wï¿½bï¿½N/003D. MagiCatz/MagiCatz.tja" for example still gets rounded up and then increased by a measure each time it gets saved
 			// ... and even so does "Heat Haze Shadow 2.tja" without any weird time signatures..??
 			const Beat inChartMaxUsedBeat = FindCourseMaxUsedBeat(inCourse);
 			const Beat inChartBeatDuration = inCourse.TempoMap.TimeToBeat(in.GetDurationOrDefault());
