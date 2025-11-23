@@ -82,6 +82,15 @@ namespace Audio
 				return false;
 			}
 
+			::WAVEFORMATEX *mixWaveFormat = nullptr;
+
+			error = audioClient->GetMixFormat(&mixWaveFormat);
+			if (FAILED(error))
+			{
+				printf(__FUNCTION__ "(): Unable to get mix format from audio client. Error: 0x%X\n", error);
+				return false;
+			}
+
 			waveformat.wFormatTag = WAVE_FORMAT_PCM;
 			waveformat.nChannels = streamParam.ChannelCount;
 			waveformat.nSamplesPerSec = streamParam.SampleRate;
@@ -91,6 +100,7 @@ namespace Audio
 			waveformat.cbSize = 0;
 
 			static constexpr DWORD sharedStreamFlags = (AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY);
+			static constexpr DWORD sharedStreamWin10Flags = (AUDCLNT_STREAMFLAGS_EVENTCALLBACK);
 			static constexpr DWORD exclusiveStreamFlags = (AUDCLNT_STREAMFLAGS_EVENTCALLBACK);
 
 			const AUDCLNT_SHAREMODE shareMode = (streamParam.ShareMode == StreamShareMode::Shared) ? AUDCLNT_SHAREMODE_SHARED : AUDCLNT_SHAREMODE_EXCLUSIVE;
@@ -109,38 +119,73 @@ namespace Audio
 				printf(__FUNCTION__ "(): Unable to retrieve device period. Error: 0x%X\n", error);
 				return false;
 			}
+			
+			ComPtr<IAudioClient3> audioClient3 = nullptr;
+			bool canUseInitializeSharedAudioStream = true;
+			canUseInitializeSharedAudioStream &= (streamParam.ShareMode == StreamShareMode::Shared);
+			canUseInitializeSharedAudioStream &= (streamParam.SampleRate == mixWaveFormat->nSamplesPerSec);
+			canUseInitializeSharedAudioStream &= (audioClient.As(&audioClient3) == HRESULT(S_OK));
 
-			error = audioClient->Initialize(shareMode, streamFlags, bufferTimeDuration, deviceTimePeriod, &waveformat, nullptr);
-			if (error == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED)
+			if (canUseInitializeSharedAudioStream)
 			{
-				error = audioClient->GetBufferSize(&bufferFrameCount);
+				UINT32 defaultPeriodInFrames = 0;
+				UINT32 fundamentalPeriodInFrames = 0;
+				UINT32 minPeriodInFrames = 0;
+				UINT32 maxPeriodInFrames = 0;
+				error = audioClient3->GetSharedModeEnginePeriod(
+					&waveformat,
+					&defaultPeriodInFrames,
+					&fundamentalPeriodInFrames,
+					&minPeriodInFrames,
+					&maxPeriodInFrames
+				);
 				if (FAILED(error))
 				{
-					printf(__FUNCTION__ "(): Unable to get audio client buffer size. Error: 0x%X\n", error);
+					printf(__FUNCTION__ "(): Unable to retrieve shared mode engine period. Error: 0x%X\n", error);
 					return false;
 				}
-
-				bufferTimeDuration = static_cast<::REFERENCE_TIME>((10000.0 * 1000 / waveformat.nSamplesPerSec * bufferFrameCount) + 0.5);
-				deviceTimePeriod = (streamParam.ShareMode == StreamShareMode::Shared) ? 0 : bufferTimeDuration;
-
-				error = device->Activate(__uuidof(::IAudioClient), CLSCTX_ALL, nullptr, &audioClient);
+				
+				error = audioClient3->InitializeSharedAudioStream(sharedStreamWin10Flags, minPeriodInFrames, &waveformat, nullptr);
 				if (FAILED(error))
 				{
-					printf(__FUNCTION__ "(): Unable to activate audio client for device. Error: 0x%X\n", error);
+					printf(__FUNCTION__ "(): Unable to initialize shared audio stream via InitializeSharedAudioStream. Error: 0x%X\n", error);
 					return false;
 				}
-
+			}
+			else
+			{
 				error = audioClient->Initialize(shareMode, streamFlags, bufferTimeDuration, deviceTimePeriod, &waveformat, nullptr);
-				if (FAILED(error))
+				if (error == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED)
+				{
+					error = audioClient->GetBufferSize(&bufferFrameCount);
+					if (FAILED(error))
+					{
+						printf(__FUNCTION__ "(): Unable to get audio client buffer size. Error: 0x%X\n", error);
+						return false;
+					}
+
+					bufferTimeDuration = static_cast<::REFERENCE_TIME>((10000.0 * 1000 / waveformat.nSamplesPerSec * bufferFrameCount) + 0.5);
+					deviceTimePeriod = (streamParam.ShareMode == StreamShareMode::Shared) ? 0 : bufferTimeDuration;
+
+					error = device->Activate(__uuidof(::IAudioClient), CLSCTX_ALL, nullptr, &audioClient);
+					if (FAILED(error))
+					{
+						printf(__FUNCTION__ "(): Unable to activate audio client for device. Error: 0x%X\n", error);
+						return false;
+					}
+
+					error = audioClient->Initialize(shareMode, streamFlags, bufferTimeDuration, deviceTimePeriod, &waveformat, nullptr);
+					if (FAILED(error))
+					{
+						printf(__FUNCTION__ "(): Unable to initialize audio client. Error: 0x%X\n", error);
+						return false;
+					}
+				}
+				else if (FAILED(error))
 				{
 					printf(__FUNCTION__ "(): Unable to initialize audio client. Error: 0x%X\n", error);
 					return false;
 				}
-			}
-			else if (FAILED(error))
-			{
-				printf(__FUNCTION__ "(): Unable to initialize audio client. Error: 0x%X\n", error);
-				return false;
 			}
 
 			audioClientEvent = ::CreateEventW(nullptr, false, false, nullptr);

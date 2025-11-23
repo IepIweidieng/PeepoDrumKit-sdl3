@@ -7,6 +7,9 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
 
+#define SDL_MAIN_HANDLED // We defined our own main()
+#include <SDL3/SDL_main.h>
+
 #include "core_io.h"
 #include "core_string.h"
 #include "../src_res/resource.h"
@@ -84,6 +87,14 @@ namespace ApplicationHost
 
 	static constexpr ImVec4 clearColor = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);
 
+	static struct
+	{
+		StartupParam StartupParam = {};
+		UserCallbacks UserCallbacks = {};
+		SDL_Window *SDL_WindowHandle = nullptr;
+		SDL_GPUDevice *SDL_GPUDeviceHandle = nullptr;
+	} SDLAppState;
+
 	static void LoadFont(void)
 	{
 		auto &io = ImGui::GetIO();
@@ -113,52 +124,102 @@ namespace ApplicationHost
 			FontMainFileNameCurrent = FontMainFileNameTarget;
 			LoadFont();
 		}
+		if (GlobalState.SetBorderlessFullscreenNextFrame.has_value())
+		{
+			b8 wantBorderlessFullscreen = *GlobalState.SetBorderlessFullscreenNextFrame;
+			if (wantBorderlessFullscreen != GlobalState.IsBorderlessFullscreen)
+			{
+				SDL_SetWindowFullscreen(SDLAppState.SDL_WindowHandle, static_cast<bool>(wantBorderlessFullscreen));
+				GlobalState.IsBorderlessFullscreen = wantBorderlessFullscreen;
+			}
+			GlobalState.SetBorderlessFullscreenNextFrame.reset();
+		}
 	}
 
-	i32 EnterProgramLoop(const StartupParam &startupParam, UserCallbacks userCallbacks)
+	static SDL_GPUDevice *CreateSDLGPUDriver(void)
 	{
-#ifdef _WIN32
-		EnableWindowsHiResTimer();
-#endif // _WIN32
+#ifdef SDL_PLATFORM_WIN32
+		std::string targetBackend = "direct3d12";
+#elifdef SDL_PLATFORM_MACOS
+		std::string targetBackend = "metal";
+#else
+		std::string targetBackend = "vulkan";
+#endif
+
+		auto gpu_device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_METALLIB, PEEPO_DEBUG, targetBackend.c_str());
+		if (gpu_device == nullptr)
+		{
+			std::cout << "Error: Failed to create GPU device with backend \"" << targetBackend << "\": " << SDL_GetError() << std::endl;
+			if (targetBackend != "vulkan")
+			{
+				std::cout << "Attempting to create GPU device with Vulkan backend as fallback..." << std::endl;
+				gpu_device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_METALLIB, PEEPO_DEBUG, "vulkan");
+				if (gpu_device == nullptr)
+				{
+					std::cout << "Error: SDL_CreateGPUDevice() fallback to Vulkan also failed: " << SDL_GetError() << std::endl;
+					return nullptr;
+				}
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
+
+		auto device_backend = SDL_GetGPUDeviceDriver(gpu_device);
+		std::cout << "Using GPU Device Backend: " << device_backend << std::endl;
+		return gpu_device;
+	}
+
+	static SDL_AppResult SDLCALL SDL_AppInit(void **appstate, int argc, char *argv[])
+	{
+		(void)appstate;
+		(void)argc;
+		(void)argv;
 
 		if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
 		{
 			std::cout << "Error: SDL_Init(): " << SDL_GetError() << std::endl;
-			return -1;
+			return SDL_APP_FAILURE;
 		}
 
 		float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 
-		auto windowTitle = std::string(startupParam.WindowTitle.empty() ? "Peepo Drum Kit" : startupParam.WindowTitle);
-		auto windowPos = startupParam.WindowPosition.has_value() ? *startupParam.WindowPosition : ivec2(100, 100);
-		auto windowSize = startupParam.WindowSize.has_value() ? *startupParam.WindowSize : ivec2(1280, 720);
+		auto windowTitle = std::string(SDLAppState.StartupParam.WindowTitle.empty() ? "Peepo Drum Kit" : SDLAppState.StartupParam.WindowTitle);
+		auto windowPos = SDLAppState.StartupParam.WindowPosition.has_value() ? *SDLAppState.StartupParam.WindowPosition : ivec2(100, 100);
+		auto windowSize = SDLAppState.StartupParam.WindowSize.has_value() ? *SDLAppState.StartupParam.WindowSize : ivec2(1280, 720);
 
 		SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 		auto window = SDL_CreateWindow(windowTitle.c_str(), (int)(1280 * main_scale), (int)(800 * main_scale), window_flags);
 		if (window == nullptr)
 		{
 			std::cout << "Error: SDL_CreateWindow(): " << SDL_GetError() << std::endl;
-			return -1;
+			return SDL_APP_FAILURE;
 		}
 
 		GlobalState.NativeWindowHandle = window;
+		SDLAppState.SDL_WindowHandle = window;
 
 		SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 		SDL_ShowWindow(window);
 
-		auto gpu_device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_METALLIB, true, nullptr);
+		auto gpu_device = CreateSDLGPUDriver();
 		if (gpu_device == nullptr)
 		{
-			std::cout << "Error: SDL_CreateGPUDevice(): " << SDL_GetError() << std::endl;
-			return 1;
+			std::cout << "Error: CreateSDLGPUDriver(): " << SDL_GetError() << std::endl;
+			return SDL_APP_FAILURE;
 		}
-		
+
 		GlobalState.SDL_GPUDeviceHandle = gpu_device;
+		SDLAppState.SDL_GPUDeviceHandle = gpu_device;
+
+		auto device_backend = SDL_GetGPUDeviceDriver(gpu_device);
+		std::cout << "Using GPU Device Backend: " << device_backend << std::endl;
 
 		if (!SDL_ClaimWindowForGPUDevice(gpu_device, window))
 		{
 			std::cout << "Error: SDL_ClaimWindowForGPUDevice(): " << SDL_GetError() << std::endl;
-			return 1;
+			return SDL_APP_FAILURE;
 		}
 		SDL_SetGPUSwapchainParameters(gpu_device, window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC);
 
@@ -189,90 +250,120 @@ namespace ApplicationHost
 		init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1; // Only used in multi-viewports mode.
 		ImGui_ImplSDLGPU3_Init(&init_info);
 
-		userCallbacks.OnStartup();
+		SDLAppState.UserCallbacks.OnStartup();
+		
+		std::cout << "Initialization complete." << std::endl;
 
-		bool done = false;
+		return SDL_APP_CONTINUE;
+	}
 
-		while (!done)
+	static SDL_AppResult SDLCALL SDL_AppIterate(void *appstate)
+	{
+		(void)appstate;
+
+		ImGui_ImplSDLGPU3_NewFrame();
+		ImGui_ImplSDL3_NewFrame();
+		ImGui::NewFrame();
+
+		// Render here
 		{
-			SDL_Event event;
-			while (SDL_PollEvent(&event))
-			{
-				ImGui_ImplSDL3_ProcessEvent(&event);
-				if (event.type == SDL_EVENT_QUIT)
-					done = true;
-				if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window) && userCallbacks.OnWindowCloseRequest() == CloseResponse::Exit)
-					done = true;
-			}
-
-			if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
-			{
-				SDL_Delay(10);
-				continue;
-			}
-
-			ImGui_ImplSDLGPU3_NewFrame();
-			ImGui_ImplSDL3_NewFrame();
-			ImGui::NewFrame();
-
-			// Render here
-			{
-				BeforeRender();
-				if (FontMain != nullptr)
-					ImGui::PushFont(FontMain);
-				userCallbacks.OnUpdate();
-				if (FontMain != nullptr)
-					ImGui::PopFont();
-			}
-
-			// Rendering
-			ImGui::Render();
-			auto draw_data = ImGui::GetDrawData();
-			const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
-
-			SDL_GPUCommandBuffer *command_buffer = SDL_AcquireGPUCommandBuffer(gpu_device); // Acquire a GPU command buffer
-
-			SDL_GPUTexture *swapchain_texture;
-			SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer, window, &swapchain_texture, nullptr, nullptr); // Acquire a swapchain texture
-
-			if (swapchain_texture != nullptr && !is_minimized)
-			{
-				// This is mandatory: call ImGui_ImplSDLGPU3_PrepareDrawData() to upload the vertex/index buffer!
-				ImGui_ImplSDLGPU3_PrepareDrawData(draw_data, command_buffer);
-
-				// Setup and start a render pass
-				SDL_GPUColorTargetInfo target_info = {};
-				target_info.texture = swapchain_texture;
-				target_info.clear_color = SDL_FColor{clearColor.x, clearColor.y, clearColor.z, clearColor.w};
-				target_info.load_op = SDL_GPU_LOADOP_CLEAR;
-				target_info.store_op = SDL_GPU_STOREOP_STORE;
-				target_info.mip_level = 0;
-				target_info.layer_or_depth_plane = 0;
-				target_info.cycle = false;
-				SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(command_buffer, &target_info, 1, nullptr);
-
-				// Render ImGui
-				ImGui_ImplSDLGPU3_RenderDrawData(draw_data, command_buffer, render_pass);
-
-				SDL_EndGPURenderPass(render_pass);
-			}
-
-			// Submit the command buffer
-			SDL_SubmitGPUCommandBuffer(command_buffer);
+			BeforeRender();
+			if (FontMain != nullptr)
+				ImGui::PushFont(FontMain);
+			SDLAppState.UserCallbacks.OnUpdate();
+			if (FontMain != nullptr)
+				ImGui::PopFont();
 		}
 
-		userCallbacks.OnShutdown();
+		// Rendering
+		ImGui::Render();
+		auto draw_data = ImGui::GetDrawData();
+		const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
 
-		SDL_WaitForGPUIdle(gpu_device);
+		SDL_GPUCommandBuffer *command_buffer = SDL_AcquireGPUCommandBuffer(SDLAppState.SDL_GPUDeviceHandle); // Acquire a GPU command buffer
+		if (command_buffer == nullptr)
+		{
+			std::cout << "Error: SDL_WaitAndAcquireGPUSwapchainTexture(): " << SDL_GetError() << std::endl;
+			return SDL_APP_FAILURE;
+		}
+
+		SDL_GPUTexture *swapchain_texture;
+		auto error = SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer, SDLAppState.SDL_WindowHandle, &swapchain_texture, nullptr, nullptr); // Acquire a swapchain texture
+		if (!error)
+		{
+			std::cout << "Error: SDL_WaitAndAcquireGPUSwapchainTexture(): " << SDL_GetError() << std::endl;
+			return SDL_APP_FAILURE;
+		}
+
+		if (swapchain_texture != nullptr && !is_minimized)
+		{
+			// This is mandatory: call ImGui_ImplSDLGPU3_PrepareDrawData() to upload the vertex/index buffer!
+			ImGui_ImplSDLGPU3_PrepareDrawData(draw_data, command_buffer);
+
+			// Setup and start a render pass
+			SDL_GPUColorTargetInfo target_info = {};
+			target_info.texture = swapchain_texture;
+			target_info.clear_color = SDL_FColor{clearColor.x, clearColor.y, clearColor.z, clearColor.w};
+			target_info.load_op = SDL_GPU_LOADOP_CLEAR;
+			target_info.store_op = SDL_GPU_STOREOP_STORE;
+			target_info.mip_level = 0;
+			target_info.layer_or_depth_plane = 0;
+			target_info.cycle = false;
+			SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(command_buffer, &target_info, 1, nullptr);
+
+			// Render ImGui
+			ImGui_ImplSDLGPU3_RenderDrawData(draw_data, command_buffer, render_pass);
+
+			SDL_EndGPURenderPass(render_pass);
+		}
+
+		// Submit the command buffer
+		SDL_SubmitGPUCommandBuffer(command_buffer);
+
+		return SDL_APP_CONTINUE;
+	}
+
+	static SDL_AppResult SDLCALL SDL_AppEvent(void *appstate, SDL_Event *event)
+	{
+		(void)appstate;
+		(void)event;
+
+		ImGui_ImplSDL3_ProcessEvent(event);
+		if (event->type == SDL_EVENT_QUIT)
+			return SDL_APP_SUCCESS;
+		if (event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event->window.windowID == SDL_GetWindowID(static_cast<SDL_Window *>(GlobalState.NativeWindowHandle)) && SDLAppState.UserCallbacks.OnWindowCloseRequest() == CloseResponse::Exit)
+			return SDL_APP_SUCCESS;
+
+		return SDL_APP_CONTINUE;
+	}
+
+	static void SDLCALL SDL_AppQuit(void *appstate, SDL_AppResult result)
+	{
+		(void)appstate;
+		(void)result;
+
+		SDLAppState.UserCallbacks.OnShutdown();
+
+		SDL_WaitForGPUIdle(SDLAppState.SDL_GPUDeviceHandle);
 		ImGui_ImplSDL3_Shutdown();
 		ImGui_ImplSDLGPU3_Shutdown();
 		ImGui::DestroyContext();
 
-		SDL_ReleaseWindowFromGPUDevice(gpu_device, window);
-		SDL_DestroyGPUDevice(gpu_device);
-		SDL_DestroyWindow(window);
-		SDL_Quit();
+		SDL_ReleaseWindowFromGPUDevice(SDLAppState.SDL_GPUDeviceHandle, SDLAppState.SDL_WindowHandle);
+		SDL_DestroyGPUDevice(SDLAppState.SDL_GPUDeviceHandle);
+		SDL_DestroyWindow(SDLAppState.SDL_WindowHandle);
+	}
 
-		return 0;
+	i32 EnterProgramLoop(const StartupParam &startupParam, UserCallbacks userCallbacks)
+	{
+#ifdef _WIN32
+		EnableWindowsHiResTimer();
+#endif // _WIN32
+
+		memset(&SDLAppState, 0, sizeof(SDLAppState));
+		SDLAppState.StartupParam = startupParam;
+		SDLAppState.UserCallbacks = userCallbacks;
+
+		return SDL_EnterAppMainCallbacks(0, nullptr, SDL_AppInit, SDL_AppIterate, SDL_AppEvent, SDL_AppQuit);
 	}
 }
