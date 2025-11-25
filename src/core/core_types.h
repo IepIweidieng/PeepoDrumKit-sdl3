@@ -634,7 +634,7 @@ constexpr void AnimateExponentialVec2(vec2* inOutCurrent, vec2 target, f32 anima
 constexpr f32 Dot(vec2 a, vec2 b) { return (a.x * b.x) + (a.y * b.y); }
 constexpr f32 LengthSqr(vec2 value) { return Dot(value, value); }
 inline f32 Length(vec2 value) { return std::sqrt(LengthSqr(value)); }
-inline vec2 Normalize(vec2 value) { value / Length(value); }
+inline vec2 Normalize(vec2 value) { return value / Length(value); }
 inline f32 Distance(f32 a, f32 b) { return Absolute(a - b); }
 inline f32 Distance(vec2 a, vec2 b) { return Length(a - b); }
 inline vec2 LookAtDirection(vec2 from, vec2 target) { return Normalize(target - from); }
