@@ -61,6 +61,7 @@ end
     
 target("PeepoDrumKit")
     set_kind("binary")
+    set_symbols("debug") -- Keep debug symbols in all build modes
     set_languages("cxxlatest")
     add_files("src/main.cpp")
     add_files("src/core/*.cpp")
