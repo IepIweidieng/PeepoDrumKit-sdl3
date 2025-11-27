@@ -58,7 +58,7 @@ if is_os("windows") then -- Process Resource File (Icon)
             end, {files = sourcefile})
         end)
 end
-    
+
 target("PeepoDrumKit")
     set_kind("binary")
     set_symbols("debug") -- Keep debug symbols in all build modes
@@ -131,3 +131,15 @@ target("PeepoDrumKit")
             end
         end)
     end
+    
+target("PeepoDrumKit_test_fumen")
+    set_kind("binary")
+    set_symbols("debug")
+    set_languages("cxxlatest")
+    set_default(false)
+    add_files("test/fumen_test.cpp")
+    add_files("src/core/core_types.cpp")
+    add_files("src/core/file_format_fumen.cpp")
+    add_includedirs("src")
+    add_includedirs("src/core")
+    add_packages("stb", "libsdl3", "icu4c")
