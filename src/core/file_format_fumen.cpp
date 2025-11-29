@@ -92,7 +92,7 @@ namespace Fumen::FormatV2
     // ============================================================================
 
     template <typename T>
-    void FumenChartReader::ReadData(const u8 *&data, const u8 *dataEnd, T &outValue)
+    void FumenChartReader::ReadData(const u8 *&data, const u8 *dataEnd, T &outValue, bool peek)
     {
         if (data + sizeof(T) > dataEnd)
         {
@@ -100,7 +100,13 @@ namespace Fumen::FormatV2
         }
 
         std::memcpy(&outValue, data, sizeof(T));
-        data += sizeof(T);
+
+        // #ifdef PEEPO_DEBUG
+        //         std::cout << "ReadData: " << typeid(T).name() << " (" << sizeof(T) << " bytes) at offset 0x" << std::hex << (data - m_DataStart) << std::dec << std::endl;
+        // #endif // PEEPO_DEBUG
+
+        if (!peek)
+            data += sizeof(T);
     }
 
     void FumenChartReader::ReadHeader(const u8 *&data, const u8 *dataEnd, Header &outHeader)
@@ -128,8 +134,15 @@ namespace Fumen::FormatV2
             try
             {
                 ReadData(data, dataEnd, note);
+
+                if (note.isRendaNote())
+                {
+                    // Renda notes have 8 bytes of padding after them
+                    u64 padding;
+                    ReadData(data, dataEnd, padding);
+                }
             }
-            catch (const FumenParseException& e)
+            catch (const FumenParseException &e)
             {
                 ThrowError("Failed to read note " + std::to_string(i + 1) + "/" + std::to_string(notesData.NumberOfNotes) + ": " + e.GetReason(), data);
             }
@@ -145,17 +158,24 @@ namespace Fumen::FormatV2
         {
             ReadData(data, dataEnd, outMeasure.Data);
         }
-        catch (const FumenParseException& e)
+        catch (const FumenParseException &e)
         {
             ThrowError("Failed to read measure " + std::to_string(m_CurrentMeasureIndex) + " data: " + e.GetReason(), data);
         }
+
+        // #ifdef PEEPO_DEBUG
+        //         if (outMeasure.Data.BPM <= 0.0f)
+        //         {
+        //             ThrowError("Invalid BPM value: " + std::to_string(outMeasure.Data.BPM), data);
+        //         }
+        // #endif // PEEPO_DEBUG
 
         // Read notes for all three branch paths
         try
         {
             ReadMeasureNotes(data, dataEnd, outMeasure.NormalNotes);
         }
-        catch (const FumenParseException& e)
+        catch (const FumenParseException &e)
         {
             ThrowError("Failed to read measure " + std::to_string(m_CurrentMeasureIndex) + " normal notes: " + e.GetReason(), data);
         }
@@ -164,7 +184,7 @@ namespace Fumen::FormatV2
         {
             ReadMeasureNotes(data, dataEnd, outMeasure.AdvancedNotes);
         }
-        catch (const FumenParseException& e)
+        catch (const FumenParseException &e)
         {
             ThrowError("Failed to read measure " + std::to_string(m_CurrentMeasureIndex) + " advanced notes: " + e.GetReason(), data);
         }
@@ -173,7 +193,7 @@ namespace Fumen::FormatV2
         {
             ReadMeasureNotes(data, dataEnd, outMeasure.MasterNotes);
         }
-        catch (const FumenParseException& e)
+        catch (const FumenParseException &e)
         {
             ThrowError("Failed to read measure " + std::to_string(m_CurrentMeasureIndex) + " master notes: " + e.GetReason(), data);
         }
@@ -230,7 +250,7 @@ namespace Fumen::FormatV2
         {
             ReadFromMemory(buffer, fileSize, outChart);
         }
-        catch (const FumenParseException& e)
+        catch (const FumenParseException &e)
         {
             throw FumenParseException("In file \"" + filePath + "\": " + e.GetReason(), e.GetOffset());
         }
@@ -265,6 +285,12 @@ namespace Fumen::FormatV2
         for (const auto &note : notes)
         {
             WriteData(buffer, note);
+            if (note.isRendaNote())
+            {
+                // Renda notes have 8 bytes of padding after them
+                u64 padding = 0;
+                WriteData(buffer, padding);
+            }
         }
     }
 

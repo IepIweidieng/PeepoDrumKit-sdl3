@@ -416,6 +416,7 @@ namespace PeepoDrumKit
 		case NoteType::Adlib: { spr = SprID::Timeline_Note_Adlib; } break;
 		case NoteType::Fuse: { spr = SprID::Timeline_Note_Fuse; } break;
 		case NoteType::Bomb: { spr = SprID::Timeline_Note_Bomb; } break;
+		case NoteType::Count: {} break;
 		}
 
 		if (IsHandNote(noteType))
@@ -442,6 +443,7 @@ namespace PeepoDrumKit
 		case NoteType::Adlib: { spr = SprID::Timeline_Note_DrumrollLong; } break;
 		case NoteType::Fuse: { spr = SprID::Timeline_Note_FuseLong; } break;
 		case NoteType::Bomb: { spr = SprID::Timeline_Note_DrumrollLong; } break;
+		case NoteType::Count: {} break;
 		}
 
 		const SprInfo sprInfo = gfx.GetInfo(spr);

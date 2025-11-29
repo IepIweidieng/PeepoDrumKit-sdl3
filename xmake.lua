@@ -143,3 +143,8 @@ target("PeepoDrumKit_test_fumen")
     add_includedirs("src")
     add_includedirs("src/core")
     add_packages("stb", "libsdl3", "icu4c")
+    if is_mode("debug") then
+        add_defines("PEEPO_DEBUG=(1)", "PEEPO_RELEASE=(0)")
+    else
+        add_defines("PEEPO_DEBUG=(0)", "PEEPO_RELEASE=(1)")
+    end

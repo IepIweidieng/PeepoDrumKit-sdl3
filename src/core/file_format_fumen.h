@@ -10,20 +10,19 @@ namespace Fumen
     class FumenParseException : public std::runtime_error
     {
     public:
-        FumenParseException(const std::string& reason, size_t offset)
-            : std::runtime_error(FormatMessage(reason, offset))
-            , m_Reason(reason)
-            , m_Offset(offset)
-        {}
+        FumenParseException(const std::string &reason, size_t offset)
+            : std::runtime_error(FormatMessage(reason, offset)), m_Reason(reason), m_Offset(offset)
+        {
+        }
 
-        const std::string& GetReason() const { return m_Reason; }
+        const std::string &GetReason() const { return m_Reason; }
         size_t GetOffset() const { return m_Offset; }
 
     private:
         std::string m_Reason;
         size_t m_Offset;
 
-        static std::string FormatMessage(const std::string& reason, size_t offset)
+        static std::string FormatMessage(const std::string &reason, size_t offset)
         {
             return "Fumen parse error at offset 0x" + ToHexString(offset) + " (" + std::to_string(offset) + " bytes): " + reason;
         }
@@ -40,20 +39,19 @@ namespace Fumen
     class FumenWriteException : public std::runtime_error
     {
     public:
-        FumenWriteException(const std::string& reason, const std::string& filePath = "")
-            : std::runtime_error(FormatMessage(reason, filePath))
-            , m_Reason(reason)
-            , m_FilePath(filePath)
-        {}
+        FumenWriteException(const std::string &reason, const std::string &filePath = "")
+            : std::runtime_error(FormatMessage(reason, filePath)), m_Reason(reason), m_FilePath(filePath)
+        {
+        }
 
-        const std::string& GetReason() const { return m_Reason; }
-        const std::string& GetFilePath() const { return m_FilePath; }
+        const std::string &GetReason() const { return m_Reason; }
+        const std::string &GetFilePath() const { return m_FilePath; }
 
     private:
         std::string m_Reason;
         std::string m_FilePath;
 
-        static std::string FormatMessage(const std::string& reason, const std::string& filePath)
+        static std::string FormatMessage(const std::string &reason, const std::string &filePath)
         {
             if (filePath.empty())
                 return "Fumen write error: " + reason;
@@ -150,7 +148,7 @@ namespace Fumen
             // Unknown data.
             u32 _Unknown1;
             // Then following data is repeated for each measure.
-            
+
             void ResetJudgeTiming(Difficulty difficulty);
             void ResetJudgeTiming(f32 goodTiming, f32 okTiming, f32 badTiming);
         };
@@ -203,7 +201,7 @@ namespace Fumen
             f32 ScrollSpeed;
             // Then following data is repeated for notes.
         };
-        
+
         static_assert(sizeof(MeasureNotesData) == 8, "NoteData size mismatch");
 
         enum NoteType : u32
@@ -239,8 +237,15 @@ namespace Fumen
             u32 _Padding2;
             // Length of 連打 and balloons (float). Zero otherwise.
             f32 Length;
+
+            // Check whether the note is a renda(or big renda) note.
+            // Is a note is a renda(big renda) note, then the note data will have 8 bytes of padding (or unknown data?) after it.
+            bool isRendaNote() const
+            {
+                return Type == NoteType::NoteType_Renda || Type == NoteType::NoteType_BigRenda;
+            }
         };
-        
+
         static_assert(sizeof(NoteData) == 24, "NoteData size mismatch");
 
         // Branch path index
@@ -279,7 +284,7 @@ namespace Fumen
             Difficulty GetDifficulty() const;
 
             // Add a new measure to the chart
-            void AddMeasure(const Measure& measure);
+            void AddMeasure(const Measure &measure);
 
             // Clear all data
             void Clear();
@@ -296,28 +301,28 @@ namespace Fumen
 
             // Read a fumen chart from a file path
             // Throws FumenParseException on parse errors, std::runtime_error on file I/O errors
-            void ReadFromFile(const std::string& filePath, FumenChart& outChart);
+            void ReadFromFile(const std::string &filePath, FumenChart &outChart);
 
             // Read a fumen chart from a memory buffer
             // Throws FumenParseException on parse errors
-            void ReadFromMemory(const u8* data, size_t dataSize, FumenChart& outChart);
+            void ReadFromMemory(const u8 *data, size_t dataSize, FumenChart &outChart);
 
         private:
-            const u8* m_DataStart = nullptr;
+            const u8 *m_DataStart = nullptr;
             size_t m_CurrentMeasureIndex = 0;
 
-            void ReadHeader(const u8*& data, const u8* dataEnd, Header& outHeader);
-            void ReadMeasure(const u8*& data, const u8* dataEnd, Measure& outMeasure);
-            void ReadMeasureNotes(const u8*& data, const u8* dataEnd, std::vector<NoteData>& outNotes);
+            void ReadHeader(const u8 *&data, const u8 *dataEnd, Header &outHeader);
+            void ReadMeasure(const u8 *&data, const u8 *dataEnd, Measure &outMeasure);
+            void ReadMeasureNotes(const u8 *&data, const u8 *dataEnd, std::vector<NoteData> &outNotes);
 
-            [[noreturn]] void ThrowError(const std::string& reason, const u8* position) const
+            [[noreturn]] void ThrowError(const std::string &reason, const u8 *position) const
             {
                 size_t offset = position ? (position - m_DataStart) : 0;
                 throw FumenParseException(reason, offset);
             }
 
-            template<typename T>
-            void ReadData(const u8*& data, const u8* dataEnd, T& outValue);
+            template <typename T>
+            void ReadData(const u8 *&data, const u8 *dataEnd, T &outValue, bool peek = false);
         };
 
         // Writer for Fumen FormatV2 binary files
@@ -328,18 +333,18 @@ namespace Fumen
 
             // Write a fumen chart to a file path
             // Throws FumenWriteException on write errors
-            void WriteToFile(const std::string& filePath, const FumenChart& chart);
+            void WriteToFile(const std::string &filePath, const FumenChart &chart);
 
             // Write a fumen chart to a memory buffer (returns the buffer)
-            std::vector<u8> WriteToMemory(const FumenChart& chart);
+            std::vector<u8> WriteToMemory(const FumenChart &chart);
 
         private:
-            void WriteHeader(std::vector<u8>& buffer, const Header& header);
-            void WriteMeasure(std::vector<u8>& buffer, const Measure& measure);
-            void WriteMeasureNotes(std::vector<u8>& buffer, const std::vector<NoteData>& notes, f32 scrollSpeed);
+            void WriteHeader(std::vector<u8> &buffer, const Header &header);
+            void WriteMeasure(std::vector<u8> &buffer, const Measure &measure);
+            void WriteMeasureNotes(std::vector<u8> &buffer, const std::vector<NoteData> &notes, f32 scrollSpeed);
 
-            template<typename T>
-            void WriteData(std::vector<u8>& buffer, const T& value);
+            template <typename T>
+            void WriteData(std::vector<u8> &buffer, const T &value);
         };
     }
 
