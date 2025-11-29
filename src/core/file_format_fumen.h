@@ -206,6 +206,7 @@ namespace Fumen
 
         enum NoteType : u32
         {
+            NoteType_None = 0,
             NoteType_Don = 1,
             NoteType_Do = 2,
             NoteType_Ko = 3,

@@ -75,6 +75,42 @@ namespace PeepoDrumKit
 	{
 		if constexpr (Member == GenericMember::Beat_Start) return (std::forward<TempTimedDelayCommandT>(event).Beat);
 	}
+	
+	using FumenNoteType = Fumen::FormatV2::NoteType;
+	static constexpr NoteType ConvertFumenNoteType(FumenNoteType fumenNoteType)
+	{
+		switch (fumenNoteType)
+		{
+		case FumenNoteType::NoteType_None: return NoteType::Count;
+		case FumenNoteType::NoteType_Don: return NoteType::Don;
+		case FumenNoteType::NoteType_Do: return NoteType::Don;
+		case FumenNoteType::NoteType_BigDon: return NoteType::DonBig;
+		case FumenNoteType::NoteType_Ka: return NoteType::Ka;
+		case FumenNoteType::NoteType_Ko: return NoteType::Ka;
+		case FumenNoteType::NoteType_Katsu: return NoteType::Ka;
+		case FumenNoteType::NoteType_BigKatsu: return NoteType::KaBig;
+		case FumenNoteType::NoteType_Renda: return NoteType::Drumroll;
+		case FumenNoteType::NoteType_BigRenda: return NoteType::DrumrollBig;
+		case FumenNoteType::NoteType_Balloon: return NoteType::Balloon;
+		case FumenNoteType::NoteType_Bell: return NoteType::BalloonSpecial;
+		}
+	}
+	
+	static constexpr FumenNoteType ConvertFumenNoteType(NoteType noteType)
+	{
+		switch (noteType)
+		{
+		case NoteType::Don: return FumenNoteType::NoteType_Don;
+		case NoteType::DonBig: return FumenNoteType::NoteType_BigDon;
+		case NoteType::Ka: return FumenNoteType::NoteType_Ka;
+		case NoteType::KaBig: return FumenNoteType::NoteType_BigKatsu;
+		case NoteType::Drumroll: return FumenNoteType::NoteType_Renda;
+		case NoteType::DrumrollBig: return FumenNoteType::NoteType_BigRenda;
+		case NoteType::Balloon: return FumenNoteType::NoteType_Balloon;
+		case NoteType::BalloonSpecial: return FumenNoteType::NoteType_Bell;
+		default: return FumenNoteType::NoteType_None;
+		}
+	}
 
 	static constexpr NoteType ConvertTJANoteType(TJA::NoteType tjaNoteType)
 	{
@@ -135,6 +171,11 @@ namespace PeepoDrumKit
 		for (const auto& v : course.BarLineChanges) maxBeat = Max(maxBeat, v.BeatTime);
 		for (const auto& v : course.Lyrics) maxBeat = Max(maxBeat, v.BeatTime);
 		return maxBeat;
+	}
+	
+	b8 CreateChartProjectFromFumen(const Fumen::FormatV2::FumenChart& inFumen, ChartProject& out)
+	{
+		// TODO
 	}
 
 	b8 CreateChartProjectFromTJA(const TJA::ParsedTJA& inTJA, ChartProject& out)

@@ -2,6 +2,7 @@
 #include "core_types.h"
 #include "core_string.h"
 #include "core_beat.h"
+#include "file_format_fumen.h"
 #include "file_format_tja.h"
 #include <unordered_map>
 #include "chart_editor_i18n.h"
