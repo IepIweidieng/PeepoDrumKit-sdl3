@@ -243,8 +243,9 @@ namespace TJA
 				return 'p';
 			case BranchCondition::Score:
 				return 's';
+			default:
+				return 'c'; // For "Copium"
 		}
-		return 'c'; // For "Copium"
 	}
 
 	enum class StyleMode : u8
