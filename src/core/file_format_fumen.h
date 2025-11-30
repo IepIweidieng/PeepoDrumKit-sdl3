@@ -61,7 +61,7 @@ namespace Fumen
     };
     static constexpr std::string_view Extension = ".fumen";
     static constexpr std::string_view PreimageExtensions = ".fumen;.bin;";
-    static constexpr std::string_view FilterName = "Taiko Nijiiro Fumen Chart";
+    static constexpr std::string_view FilterName = "Taiko Nijiiro FumenV2 Chart";
     static constexpr std::string_view FilterSpec = "fumen";
 
     enum ClearHPDefault : u32
@@ -71,13 +71,14 @@ namespace Fumen
         ClearHP_Oni = 8000
     };
 
-#pragma pack(push, 1)
-
     // Format documentation based on this source:
     // https://discord.com/channels/859872100860035113/859878630422609972/859954716511436850
 
     namespace FormatV2
     {
+
+#pragma pack(push, 1)
+
         // Difficulty levels used in Fumen charts.
         // The value also corresponds to the suffix character used in the filename with underscore.
         // For example: "natsu_e.bin" is an Easy chart of song with id "natsu".
@@ -249,6 +250,8 @@ namespace Fumen
 
         static_assert(sizeof(NoteData) == 24, "NoteData size mismatch");
 
+#pragma pack(pop)
+
         // Branch path index
         enum class BranchPath : u8
         {
@@ -349,5 +352,4 @@ namespace Fumen
         };
     }
 
-#pragma pack(pop)
 }
