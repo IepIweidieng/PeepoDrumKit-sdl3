@@ -175,7 +175,60 @@ namespace PeepoDrumKit
 	
 	b8 CreateChartProjectFromFumen(const Fumen::FormatV2::FumenChart& inFumen, ChartProject& out)
 	{
-		// TODO
+		out.ChartDuration = Time::Zero();
+		
+		b8 isBarlineVisible = inFumen.Measures.empty() ? true : static_cast<b8>(inFumen.Measures[0].Data.IsBarLineVisible);
+		Tempo currentBpm = inFumen.Measures.empty() ? FallbackTempo : Tempo(inFumen.Measures[0].Data.BPM);
+		
+		out.Courses.clear();
+		ChartCourse& course = *out.Courses.emplace_back(std::make_unique<ChartCourse>());
+		
+		course.TempoMap.Tempo.Sorted.emplace_back(TempoChange { Beat::Zero(), currentBpm });
+		course.BarLineChanges.Sorted.emplace_back(BarLineChange { Beat::Zero(), isBarlineVisible });
+		
+		for (auto it = inFumen.Measures.begin(); it != inFumen.Measures.end(); ++it)
+		{
+			auto& measure = *it;
+			auto pos = course.TempoMap.TimeToBeat(Time::FromMS(measure.Data.MeasureOffset));
+			if (!ApproxmiatelySame(measure.Data.BPM, currentBpm.BPM))
+			{
+				currentBpm = Tempo(measure.Data.BPM);
+				course.TempoMap.Tempo.Sorted.emplace_back(TempoChange { pos, currentBpm });
+			}
+			if (static_cast<b8>(measure.Data.IsBarLineVisible) != isBarlineVisible)
+			{
+				isBarlineVisible = static_cast<b8>(measure.Data.IsBarLineVisible);
+				course.BarLineChanges.Sorted.emplace_back(BarLineChange { pos, isBarlineVisible });
+			}
+			// TODO: Measure Division Data and correction of note position
+			for (auto nit = measure.NormalNotes.begin(); nit != measure.NormalNotes.end(); ++nit)
+			{
+				auto& note = *nit;
+				NoteType noteType = ConvertFumenNoteType(note.Type);
+				if (noteType == NoteType::Count)
+					continue;
+
+				Note& outNote = course.Notes_Normal.Sorted.emplace_back();
+				outNote.BeatTime = pos + course.TempoMap.TimeToBeat(Time::FromMS(note.NoteOffset));
+				outNote.Type = noteType;
+				outNote.TimeOffset = Time::Zero();
+
+				if (note.Type == Fumen::FormatV2::NoteType::NoteType_Balloon)
+				{
+					outNote.BalloonPopCount = static_cast<i16>(note.InitialScoreValue);
+					outNote.BeatDuration = course.TempoMap.TimeToBeat(Time::FromMS(note.Length));
+				}
+				if (note.isRendaNote())
+				{
+					outNote.BeatDuration = course.TempoMap.TimeToBeat(Time::FromMS(note.Length));
+				}
+			}
+		}
+		
+		if (!course.Notes_Normal.Sorted.empty())
+		{
+			out.ChartDuration = course.TempoMap.BeatToTime(course.Notes_Normal.end()->GetEnd());
+		}
 	}
 
 	b8 CreateChartProjectFromTJA(const TJA::ParsedTJA& inTJA, ChartProject& out)

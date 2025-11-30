@@ -1474,23 +1474,35 @@ namespace PeepoDrumKit
 				printf("Failed to read file '%.*s'\n", FmtStrViewArgs(result.ChartFilePath));
 				return result;
 			}
-
-			assert(Path::HasExtension(result.ChartFilePath, TJA::Extension));
-
-			const std::string_view fileContentView = std::string_view(reinterpret_cast<const char*>(fileContent.get()), fileSize);
-			if (UTF8::HasBOM(fileContentView))
-				result.TJA.FileContentUTF8 = UTF8::TrimBOM(fileContentView);
-			else
-				result.TJA.FileContentUTF8 = UTF8::FromShiftJIS(fileContentView);
-
-			result.TJA.Lines = TJA::SplitLines(result.TJA.FileContentUTF8);
-			result.TJA.Tokens = TJA::TokenizeLines(result.TJA.Lines);
-			result.TJA.Parsed = ParseTokens(result.TJA.Tokens, result.TJA.ParseErrors);
-
-			if (!CreateChartProjectFromTJA(result.TJA.Parsed, result.Chart))
+			
+			if (Path::HasExtension(result.ChartFilePath, TJA::Extension))
 			{
-				printf("Failed to create chart from TJA file '%.*s'\n", FmtStrViewArgs(result.ChartFilePath));
-				return result;
+				const std::string_view fileContentView = std::string_view(reinterpret_cast<const char*>(fileContent.get()), fileSize);
+				if (UTF8::HasBOM(fileContentView))
+					result.TJA.FileContentUTF8 = UTF8::TrimBOM(fileContentView);
+				else
+					result.TJA.FileContentUTF8 = UTF8::FromShiftJIS(fileContentView);
+
+				result.TJA.Lines = TJA::SplitLines(result.TJA.FileContentUTF8);
+				result.TJA.Tokens = TJA::TokenizeLines(result.TJA.Lines);
+				result.TJA.Parsed = ParseTokens(result.TJA.Tokens, result.TJA.ParseErrors);
+
+				if (!CreateChartProjectFromTJA(result.TJA.Parsed, result.Chart))
+				{
+					printf("Failed to create chart from TJA file '%.*s'\n", FmtStrViewArgs(result.ChartFilePath));
+					return result;
+				}
+			}
+			else if (Path::HasExtension(result.ChartFilePath, Fumen::Extension))
+			{
+				Fumen::FormatV2::FumenChartReader reader = {};
+				Fumen::FormatV2::FumenChart outChart = {};
+				reader.ReadFromMemory(fileContent.get(), fileSize, outChart);
+				CreateChartProjectFromFumen(outChart, result.Chart);
+			}
+			else
+			{
+				throw std::runtime_error("Unsupported chart file extension");
 			}
 
 			return result;
@@ -1605,7 +1617,7 @@ namespace PeepoDrumKit
 	b8 ChartEditor::OpenLoadChartFileDialog(ChartContext& context)
 	{
 		fileDialog.InTitle = "Open Chart File";
-		fileDialog.InFilters = { { TJA::FilterName, TJA::FilterSpec }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
+		fileDialog.InFilters = { { TJA::FilterName, TJA::FilterSpec }, { Fumen::FilterName, Fumen::FilterSpec }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
 		fileDialog.onCallback = [&](Shell::FileDialogResult result)
 		{
