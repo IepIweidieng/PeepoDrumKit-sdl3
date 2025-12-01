@@ -182,16 +182,16 @@ namespace PeepoDrumKit
 		f32 currentScrollSpeed = inFumen.Measures.empty() ? 1.0f : inFumen.Measures[0].NormalNotesScrollSpeed;
 		f32 firstMeasureOffset = inFumen.Measures.empty() ? 0.0f : inFumen.Measures[0].Data.MeasureOffset;
 		f32 bpmChangeOffsetAccum = 0.0f;
-		auto gogoTimeStartMeasure = std::optional<size_t>();
-		
+		auto gogoTimeStartMeasure = std::optional<Time>();
+
 		out.Courses.clear();
 		ChartCourse& course = *out.Courses.emplace_back(std::make_unique<ChartCourse>());
-		
+
 		course.TempoMap.Tempo.Sorted.emplace_back(TempoChange { Beat::Zero(), currentBpm });
 		course.TempoMap.Signature.Sorted.emplace_back(TimeSignatureChange { Beat::Zero(), TimeSignature(4, 4) });
 		course.TempoMap.RebuildAccelerationStructure();
 		course.BarLineChanges.Sorted.emplace_back(BarLineChange { Beat::Zero(), isBarlineVisible });
-		
+
 		for (auto it = inFumen.Measures.begin(); it != inFumen.Measures.end(); ++it)
 		{
 			auto& measure = *it;
@@ -220,8 +220,7 @@ namespace PeepoDrumKit
 			{
 				if (measure.Data.IsGogoTime == 0)
 				{
-					auto& startMeasure = inFumen.Measures[*gogoTimeStartMeasure];
-					auto startPos = Time::FromMS(startMeasure.Data.MeasureOffset);
+					auto startPos = *gogoTimeStartMeasure;
 					course.GoGoRanges.Sorted.emplace_back(GoGoRange {
 						.BeatTime = course.TempoMap.TimeToBeat(startPos),
 						.BeatDuration = course.TempoMap.TimeToBeat(pos - startPos),
@@ -231,7 +230,7 @@ namespace PeepoDrumKit
 			}
 			else if (measure.Data.IsGogoTime != 0)
 			{
-				gogoTimeStartMeasure = std::distance(inFumen.Measures.begin(), it);
+				gogoTimeStartMeasure = pos;
 			}
 			// TODO: Measure Division Data and correction of bar line position
 			for (auto nit = measure.NormalNotes.begin(); nit != measure.NormalNotes.end(); ++nit)
@@ -260,11 +259,10 @@ namespace PeepoDrumKit
 				}
 			}
 		}
-		
+
 		if (gogoTimeStartMeasure.has_value())
 		{
-			auto& startMeasure = inFumen.Measures[*gogoTimeStartMeasure];
-			auto startPos = course.TempoMap.TimeToBeat(Time::FromMS(startMeasure.Data.MeasureOffset));
+			auto startPos = course.TempoMap.TimeToBeat(*gogoTimeStartMeasure);
 			auto endPos = course.TempoMap.TimeToBeat(out.GetDurationOrDefault());
 			course.GoGoRanges.Sorted.emplace_back(GoGoRange {
 				.BeatTime = startPos,
@@ -276,6 +274,8 @@ namespace PeepoDrumKit
 		{
 			out.ChartDuration = course.TempoMap.BeatToTime(course.Notes_Normal.end()->GetEnd());
 		}
+
+		return true;
 	}
 
 	b8 CreateChartProjectFromTJA(const TJA::ParsedTJA& inTJA, ChartProject& out)
