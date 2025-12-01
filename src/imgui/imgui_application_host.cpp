@@ -250,7 +250,7 @@ namespace ApplicationHost
 		ImGui_ImplSDLGPU3_Init(&init_info);
 
 		SDLAppState.UserCallbacks.OnStartup();
-		
+
 		std::cout << "Initialization complete." << std::endl;
 
 		return SDL_APP_CONTINUE;
@@ -273,6 +273,9 @@ namespace ApplicationHost
 			if (FontMain != nullptr)
 				ImGui::PopFont();
 		}
+
+		if (!GlobalState.FilePathsDroppedThisFrame.empty())
+			GlobalState.FilePathsDroppedThisFrame.clear();
 
 		// Rendering
 		ImGui::Render();
@@ -332,6 +335,8 @@ namespace ApplicationHost
 			return SDL_APP_SUCCESS;
 		if (event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event->window.windowID == SDL_GetWindowID(static_cast<SDL_Window *>(GlobalState.NativeWindowHandle)) && SDLAppState.UserCallbacks.OnWindowCloseRequest() == CloseResponse::Exit)
 			return SDL_APP_SUCCESS;
+		if (event->type == SDL_EVENT_DROP_FILE)
+			GlobalState.FilePathsDroppedThisFrame.emplace_back(event->drop.data);
 
 		return SDL_APP_CONTINUE;
 	}
