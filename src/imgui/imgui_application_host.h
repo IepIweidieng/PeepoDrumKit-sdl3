@@ -1,5 +1,6 @@
 #pragma once
 #include "core_types.h"
+#include <imgui.h>
 #include <string_view>
 #include <vector>
 #include <optional>
@@ -24,10 +25,10 @@ inline std::string FontMainFileNameCurrent = "";
 inline f32 GuiScaleFactorCurrent = 1.0f;
 inline f32 GuiScaleFactorTarget = GuiScaleFactorCurrent;
 inline f32 GuiScaleFactorToSetNextFrame = GuiScaleFactorCurrent;
-inline f32 GuiScale(f32 value) { return Floor(value * GuiScaleFactorCurrent); }
-inline f32 GuiScale_AtTarget(f32 value) { return Floor(value * GuiScaleFactorTarget); }
-inline vec2 GuiScale(vec2 value) { return Floor(value * GuiScaleFactorCurrent); }
-inline vec2 GuiScale_AtTarget(vec2 value) { return Floor(value * GuiScaleFactorTarget); }
+inline f32 GuiScale(f32 value) { return Floor(value * ImGui::GetStyle().FontScaleDpi); }
+inline f32 GuiScale_AtTarget(f32 value) { return Floor(value * ImGui::GetStyle().FontScaleDpi); }
+inline vec2 GuiScale(vec2 value) { return Floor(value * ImGui::GetStyle().FontScaleDpi); }
+inline vec2 GuiScale_AtTarget(vec2 value) { return Floor(value * ImGui::GetStyle().FontScaleDpi); }
 inline i32 GuiScaleI32(i32 value) { return static_cast<i32>(Floor(static_cast<f32>(value) * GuiScaleFactorCurrent)); }
 inline i32 GuiScaleI32_AtTarget(i32 value) { return static_cast<i32>(Floor(static_cast<f32>(value) * GuiScaleFactorTarget)); }
 
