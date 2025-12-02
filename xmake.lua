@@ -131,7 +131,7 @@ target("PeepoDrumKit")
             end
         end)
     end
-    
+
 target("PeepoDrumKit_test_fumen")
     set_kind("binary")
     set_symbols("debug")
