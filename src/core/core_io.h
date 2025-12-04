@@ -197,7 +197,7 @@ namespace Shell
 		std::function<void(FileDialogResult result)> onCallback;
 		u32 InOutFilterIndex = 0;
 		void *InParentWindowHandle = nullptr;
-		std::string OutFilePath;
+		const char *OutFilePath = "";
 
 		b8 OpenRead();
 		b8 OpenSave();
