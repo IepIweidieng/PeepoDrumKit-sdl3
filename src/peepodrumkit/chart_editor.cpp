@@ -27,6 +27,8 @@ namespace PeepoDrumKit
 	static void ZoomOutGuiScale() { GuiScaleFactorToSetNextFrame = NextPresetGuiScaleFactor(GuiScaleFactorTarget, -1); }
 	static void ZoomResetGuiScale() { GuiScaleFactorToSetNextFrame = 1.0f; }
 
+	static Shell::FileDialog fileDialog {};
+
 	static b8 CanOpenChartDirectoryInFileExplorer(const ChartContext& context)
 	{
 		return !context.ChartFilePath.empty();
@@ -1433,7 +1435,6 @@ namespace PeepoDrumKit
 			return Path::TrimExtension(UntitledChartFileName);
 		};
 
-		Shell::FileDialog fileDialog {};
 		fileDialog.InTitle = "Save Chart As";
 		fileDialog.InFileName = getChartFileNameWithoutExtensionOrDefault(context);
 		fileDialog.InDefaultExtension = TJA::Extension;
@@ -1632,7 +1633,6 @@ namespace PeepoDrumKit
 
 	b8 ChartEditor::OpenLoadJacketFileDialog(Undo::UndoHistory& undo)
 	{
-		Shell::FileDialog fileDialog {};
 		fileDialog.InTitle = "Open Jacket File";
 		fileDialog.InFilters = { { "Image Files", "jpg;jpeg;png" }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
 		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;

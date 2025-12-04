@@ -369,17 +369,17 @@ namespace Shell
 		if (filelist == nullptr)
 		{
 			printf("Error opening file dialog: %s\n", SDL_GetError());
-			dialog->OutFilePath.clear();
+			dialog->OutFilePath = "";
 			dialog->onCallback(FileDialogResult::Error);
 		}
 		else if (*filelist == nullptr)
 		{
-			dialog->OutFilePath.clear();
+			dialog->OutFilePath = "";
 			dialog->onCallback(FileDialogResult::Cancel);
 		}
 		else
 		{
-			dialog->OutFilePath = std::string(filelist[0]);
+			dialog->OutFilePath = filelist[0];
 			dialog->onCallback(FileDialogResult::OK);
 		}
 	}
