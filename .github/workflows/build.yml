@@ -41,7 +41,7 @@ jobs:
           sudo apt-get install -y libsoundio-dev
 
       - name: Setup LLVM
-        if: ${{ matrix.os == 'macosx' }}
+        if: ${{ matrix.os != 'windows' }}
         uses: ZhongRuoyu/setup-llvm@v0
         with:
           llvm-version: 21
@@ -53,7 +53,7 @@ jobs:
 
       - name: Configure xmake (Release, ${{ matrix.arch }})
         run: |
-          xmake f -m release -a ${{ matrix.arch }} -y
+          xmake f -m release -a ${{ matrix.arch }} ${{ matrix.os == 'linux' && '--toolchain=clang' || '' }} -c -y
 
       - name: Build
         run: |
