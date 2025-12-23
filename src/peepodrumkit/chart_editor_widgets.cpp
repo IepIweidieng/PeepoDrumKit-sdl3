@@ -491,6 +491,23 @@ namespace PeepoDrumKit
 				Gui::PopFont();
 				Gui::PopStyleColor();
 
+				// v1.3
+				{
+					Gui::PushStyleColor(ImGuiCol_Text, colors.RedBright);
+					Gui::PushFont(FontMain, GuiScaleI32_AtTarget(FontBaseSizes::Medium));
+					Gui::TextUnformatted("v1.3 (alpha)");
+					Gui::PopFont();
+
+					Gui::PushFont(FontMain, GuiScaleI32_AtTarget(FontBaseSizes::Small));
+					Gui::TextUnformatted("- French, Spanish, & Russian locales, and Simplified Chinese revision by Expédic Habbet");
+					Gui::TextUnformatted("- Migration to xmake build system, SDL3 port, and MacOSX support by SteveXMH");
+					Gui::TextUnformatted("- Linux support by 熊谷 凌 / FurryR");
+					Gui::TextUnformatted("- (for the full change list, please refer to the commit history)");
+					Gui::TextUnformatted("");
+					Gui::PopFont();
+					Gui::PopStyleColor();
+				}
+
 				// v1.2
 				{
 					Gui::PushStyleColor(ImGuiCol_Text, colors.RedBright);
