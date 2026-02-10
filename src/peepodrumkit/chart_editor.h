@@ -41,6 +41,12 @@ namespace PeepoDrumKit
 		std::string JacketFilePath;
 	};
 
+	struct AsyncExportChartResult
+	{
+		b8 Success = false;
+		std::string Message;
+	};
+
 	struct ChartEditor
 	{
 	public:
@@ -61,13 +67,12 @@ namespace PeepoDrumKit
 		void SaveChart(ChartContext& context, std::string_view filePath = "");
 		b8 OpenChartSaveAsDialog(ChartContext& context);
 		b8 TrySaveChartOrOpenSaveAsDialog(ChartContext& context);
-		b8 OpenFumenExportDialog(const ChartContext& context);
 
 		void StartAsyncImportingChartFile(std::string_view absoluteChartFilePath);
 		void StartAsyncImportingFumenFile(std::string_view absoluteChartFilePath, bool encrypted = false);
 		void StartAsyncImportingFumenChartDirectory(std::string_view absoluteChartFilePath, bool encrypted = false);
-		void StartAsyncExportFumenFile(std::string_view absoluteChartFilePath, bool encrypted = false);
-		void StartAsyncExportFumenChartDirectory(std::string_view absoluteChartFilePath, bool encrypted = false);
+		void StartAsyncExportFumenFile(std::string_view absoluteChartFilePath, bool encrypted = false, bool ignoreValidation = false);
+		void StartAsyncExportFumenChartDirectory(std::string_view absoluteChartFilePath, bool encrypted = false, bool ignoreValidation = false);
 		void StartAsyncLoadingSongAudioFile(std::string_view absoluteAudioFilePath);
 		void StartAsyncLoadingSongJacketFile(std::string_view absoluteJacketFilePath);
 		void SetAndStartLoadingChartSongFileName(std::string_view relativeOrAbsoluteAudioFilePath, Undo::UndoHistory& undo);
@@ -90,6 +95,7 @@ namespace PeepoDrumKit
 		ChartGamePreview gamePreview = {};
 
 		std::future<AsyncImportChartResult> importChartFuture {};
+		std::future<AsyncExportChartResult> exportChartFuture {};
 		std::future<AsyncLoadSongResult> loadSongFuture {};
 		std::future<AsyncLoadJacketResult> loadJacketFuture {};
 		Shell::FileDialog fileDialog {};
@@ -130,6 +136,15 @@ namespace PeepoDrumKit
 			b8 OpenOnNextFrame;
 			std::function<void()> OnSuccessFunction;
 		} saveConfirmationPopup = {};
+
+		struct ExportCompatibilityPopupData
+		{
+			b8 IsOpen = false;
+			std::string FilePath;
+			b8 Encrypted = false;
+			b8 IsDirectoryExport = false;
+			std::vector<std::string> AllIssues;
+		} exportCompatibilityPopup = {};
 
 		struct PerformanceData
 		{

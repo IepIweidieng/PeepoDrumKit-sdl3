@@ -407,11 +407,26 @@ namespace Shell
 		if (dialog.InParentWindowHandle != nullptr)
 			SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, dialog.InParentWindowHandle);
 
-		if (!dialog.InDefaultExtension.empty())
+		if (!dialog.InFileName.empty() || !dialog.InDefaultExtension.empty())
 		{
-			std::string defaultExtWithDot = ".";
-			defaultExtWithDot.append(dialog.InDefaultExtension);
-			SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, defaultExtWithDot.c_str());
+			std::string location;
+			if (!dialog.InFileName.empty())
+			{
+				location = dialog.InFileName;
+				if (!dialog.InDefaultExtension.empty() && !Path::HasExtension(location, dialog.InDefaultExtension))
+				{
+					if (dialog.InDefaultExtension[0] != '.')
+						location += '.';
+					location += dialog.InDefaultExtension;
+				}
+			}
+			else
+			{
+				if (dialog.InDefaultExtension[0] != '.')
+					location += '.';
+				location += dialog.InDefaultExtension;
+			}
+			SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, location.c_str());
 		}
 
 		std::vector<SDL_DialogFileFilter> sdlFilters;

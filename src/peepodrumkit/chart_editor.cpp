@@ -96,6 +96,11 @@ namespace PeepoDrumKit
 
 	ChartEditor::~ChartEditor()
 	{
+		if (importChartFuture.valid()) importChartFuture.get();
+		if (exportChartFuture.valid()) exportChartFuture.get();
+		if (loadSongFuture.valid()) loadSongFuture.get();
+		if (loadJacketFuture.valid()) loadJacketFuture.get();
+
 		context.SfxVoicePool.UnloadAllSourcesAndVoices();
 	}
 
@@ -521,9 +526,6 @@ namespace PeepoDrumKit
 				Gui::MenuItem(UI_Str("ACT_TEST_SHOW_AUDIO_TEST"), "(Debug)", &PersistentApp.LastSession.ShowWindow_AudioTest);
 				Gui::MenuItem(UI_Str("ACT_TEST_SHOW_TJA_IMPORT_TEST"), "(Debug)", &PersistentApp.LastSession.ShowWindow_TJAImportTest);
 				Gui::MenuItem(UI_Str("ACT_TEST_SHOW_TJA_EXPORT_VIEW"), "(Debug)", &PersistentApp.LastSession.ShowWindow_TJAExportTest);
-				if (Gui::MenuItem("Fumen Export Test", "(Debug)")) {
-					OpenFumenExportDialog(context);
-				}
 #if !defined(IMGUI_DISABLE_DEMO_WINDOWS)
 				Gui::Separator();
 				Gui::MenuItem(UI_Str("ACT_TEST_SHOW_IMGUI_DEMO"), " ", &PersistentApp.LastSession.ShowWindow_ImGuiDemo);
@@ -1328,6 +1330,53 @@ namespace PeepoDrumKit
 			Gui::PopStyleVar(2);
 		}
 
+		// NOTE: Fumen export compatibility popup
+		{
+			static constexpr cstr exportCompatibilityPopupID = "INFO_MSGBOX_FUMEN_COMPATIBILITY";
+			if (exportCompatibilityPopup.IsOpen) { Gui::OpenPopup(UI_WindowName(exportCompatibilityPopupID)); exportCompatibilityPopup.IsOpen = false; }
+
+			const ImGuiViewport* mainViewport = Gui::GetMainViewport();
+			Gui::SetNextWindowPos(Rect::FromTLSize(mainViewport->Pos, mainViewport->Size).GetCenter(), ImGuiCond_Appearing, vec2(0.5f));
+
+			Gui::PushStyleVar(ImGuiStyleVar_WindowPadding, { GuiScale(12.0f), GuiScale(12.0f) });
+			b8 isExportPopupOpen = true;
+			if (Gui::BeginPopupModal(UI_WindowName(exportCompatibilityPopupID), &isExportPopupOpen, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
+			{
+				Gui::TextUnformatted("The following Fumen compatibility issues were found:");
+				Gui::Separator();
+
+				Gui::BeginChild("IssuesList", vec2(GuiScale(500.0f), GuiScale(200.0f)), true);
+				for (const auto& issue : exportCompatibilityPopup.AllIssues)
+				{
+					Gui::Bullet(); Gui::TextWrapped("%s", issue.c_str());
+				}
+				Gui::EndChild();
+
+				Gui::Spacing();
+				Gui::TextUnformatted("Do you want to continue with the export anyway?");
+				Gui::Separator();
+
+				const vec2 buttonSize = GuiScale(vec2(150.0f, 0.0f));
+				if (Gui::Button("Export Anyway", buttonSize) || (Gui::IsWindowFocused() && Gui::IsAnyPressed(*Settings.Input.Dialog_YesOrOk, false)))
+				{
+					if (exportCompatibilityPopup.IsDirectoryExport)
+						StartAsyncExportFumenChartDirectory(exportCompatibilityPopup.FilePath, exportCompatibilityPopup.Encrypted, true);
+					else
+						StartAsyncExportFumenFile(exportCompatibilityPopup.FilePath, exportCompatibilityPopup.Encrypted, true);
+					
+					Gui::CloseCurrentPopup();
+				}
+				Gui::SameLine();
+				if (Gui::Button("Cancel", buttonSize) || (Gui::IsWindowFocused() && Gui::IsAnyPressed(*Settings.Input.Dialog_Cancel, false)))
+				{
+					Gui::CloseCurrentPopup();
+				}
+
+				Gui::EndPopup();
+			}
+			Gui::PopStyleVar();
+		}
+
 		context.Undo.FlushAndExecuteEndOfFrameCommands();
 	}
 
@@ -1377,6 +1426,12 @@ namespace PeepoDrumKit
 
 	ApplicationHost::CloseResponse ChartEditor::OnWindowCloseRequest()
 	{
+		if (exportChartFuture.valid() && !future_is_ready(exportChartFuture))
+		{
+			Shell::ShowMessageBox("An export is currently in progress. Please wait for it to finish before closing the application.", "Export In Progress", Shell::MessageBoxButtons::OK, Shell::MessageBoxIcon::Warning, ApplicationHost::GlobalState.NativeWindowHandle);
+			return ApplicationHost::CloseResponse::SupressExit;
+		}
+
 		if (context.Undo.HasPendingChanges)
 		{
 			tryToCloseApplicationOnNextFrame = true;
@@ -1501,30 +1556,6 @@ namespace PeepoDrumKit
 		return fileDialog.OpenSave();
 	}
 	
-	b8 ChartEditor::OpenFumenExportDialog(const ChartContext& context)
-	{
-		fileDialog.InTitle = "Export Chart to Fumen Format";
-		fileDialog.InFileName = Path::GetFileName(context.ChartFilePath, false);
-		fileDialog.InDefaultExtension = Fumen::Extension;
-		fileDialog.InFilters = { { Fumen::FilterName, Fumen::FilterSpec }, { Shell::AllFilesFilterName, Shell::AllFilesFilterSpec }, };
-		fileDialog.InParentWindowHandle = ApplicationHost::GlobalState.NativeWindowHandle;
-		fileDialog.onCallback = [&](Shell::FileDialogResult result)
-		{
-			if (result == Shell::FileDialogResult::OK)
-			{
-				std::cout << "Exporting chart to Fumen file: " << fileDialog.OutFilePath << std::endl;
-				Fumen::FormatV2::FumenChart fumenChart = {};
-				PeepoDrumKit::ConvertChartProjectToFumen(context.Chart, fumenChart);
-				std::cout << "Converted fumen with measures: " << fumenChart.GetMeasureCount() << std::endl;
-				Fumen::FormatV2::FumenChartWriter writer = {};
-				std::vector<u8> fumenFileData = writer.WriteToMemory(fumenChart);
-				File::WriteAllBytes(fileDialog.OutFilePath, fumenFileData.data(), fumenFileData.size());
-			}
-		};
-
-		return fileDialog.OpenSave();
-	}
-
 	b8 ChartEditor::TrySaveChartOrOpenSaveAsDialog(ChartContext& context)
 	{
 		if (context.ChartFilePath.empty())
@@ -1711,34 +1742,52 @@ namespace PeepoDrumKit
 		});
 	}
 
-	void ChartEditor::StartAsyncExportFumenFile(std::string_view absoluteChartFilePath, bool encrypted)
+	void ChartEditor::StartAsyncExportFumenFile(std::string_view absoluteChartFilePath, bool encrypted, bool ignoreValidation)
 	{
-		if (importChartFuture.valid())
-			importChartFuture.get();
+		if (exportChartFuture.valid() && !future_is_ready(exportChartFuture))
+			return;
 
-		importChartFuture = std::async(std::launch::async, [this, tempPathCopy = std::string(absoluteChartFilePath), encrypted]() mutable->AsyncImportChartResult
+		// 找到当前选中的难度索引
+		size_t selectedCourseIndex = 0;
+		for (size_t i = 0; i < context.Chart.Courses.size(); ++i)
 		{
-			AsyncImportChartResult result {};
-			result.ChartFilePath = std::move(tempPathCopy);
+			if (context.Chart.Courses[i].get() == context.ChartSelectedCourse)
+			{
+				selectedCourseIndex = i;
+				break;
+			}
+		}
 
+		if (!ignoreValidation)
+		{
+			Fumen::FormatV2::FumenChart dummyChart = {};
+			std::vector<Fumen::ValidationIssue> issues;
+			if (ConvertChartProjectToFumen(context.Chart, dummyChart, selectedCourseIndex, &issues) && !issues.empty())
+			{
+				exportCompatibilityPopup.IsOpen = true;
+				exportCompatibilityPopup.IsDirectoryExport = false;
+				exportCompatibilityPopup.FilePath = absoluteChartFilePath;
+				exportCompatibilityPopup.Encrypted = encrypted;
+				exportCompatibilityPopup.AllIssues.clear();
+				for (const auto& issue : issues)
+					exportCompatibilityPopup.AllIssues.push_back(issue.Message);
+				return;
+			}
+		}
+
+		exportChartFuture = std::async(std::launch::async, [this, tempPathCopy = std::string(absoluteChartFilePath), encrypted, selectedCourseIndex]() mutable -> AsyncExportChartResult
+		{
+			AsyncExportChartResult result;
 			try
 			{
-				// 找到当前选中的难度索引
-				size_t selectedCourseIndex = 0;
-				for (size_t i = 0; i < context.Chart.Courses.size(); ++i)
-				{
-					if (context.Chart.Courses[i].get() == context.ChartSelectedCourse)
-					{
-						selectedCourseIndex = i;
-						break;
-					}
-				}
+				const std::string chartFilePath = std::move(tempPathCopy);
 
 				// 将当前图表转换为 Fumen 格式
 				Fumen::FormatV2::FumenChart fumenChart = {};
 				if (!ConvertChartProjectToFumen(context.Chart, fumenChart, selectedCourseIndex))
 				{
-					printf("Failed to convert chart to Fumen format\n");
+					result.Success = false;
+					result.Message = "Failed to convert chart to Fumen format";
 					return result;
 				}
 
@@ -1753,32 +1802,71 @@ namespace PeepoDrumKit
 				}
 
 				// 写入文件
-				File::WriteAllBytes(result.ChartFilePath, fileData.data(), fileData.size());
-				printf("Successfully exported Fumen file to '%s'\n", result.ChartFilePath.c_str());
+				File::WriteAllBytes(chartFilePath, fileData.data(), fileData.size());
+				result.Success = true;
+				result.Message = "Successfully exported Fumen file to '" + chartFilePath + "'";
 			}
 			catch (const std::exception& e)
 			{
-				printf("Failed to export Fumen file: %s\n", e.what());
+				result.Success = false;
+				result.Message = std::string("Failed to export Fumen file: ") + e.what();
 			}
-
 			return result;
 		});
 	}
 
-	void ChartEditor::StartAsyncExportFumenChartDirectory(std::string_view absoluteChartFilePath, bool encrypted)
+	void ChartEditor::StartAsyncExportFumenChartDirectory(std::string_view absoluteChartFilePath, bool encrypted, bool ignoreValidation)
 	{
-		if (importChartFuture.valid())
-			importChartFuture.get();
+		if (exportChartFuture.valid() && !future_is_ready(exportChartFuture))
+			return;
 
-		importChartFuture = std::async(std::launch::async, [this, tempPathCopy = std::string(absoluteChartFilePath), encrypted]() mutable->AsyncImportChartResult
+		if (!ignoreValidation)
 		{
-			AsyncImportChartResult result {};
-			result.ChartFilePath = std::move(tempPathCopy);
+			std::vector<std::string> allWarnings;
+			for (size_t i = 0; i < context.Chart.Courses.size(); ++i)
+			{
+				Fumen::FormatV2::FumenChart fumenChart = {};
+				std::vector<Fumen::ValidationIssue> issues;
+				if (ConvertChartProjectToFumen(context.Chart, fumenChart, i, &issues))
+				{
+					for (const auto& issue : issues)
+					{
+						const char* diffStr = "Unknown";
+						switch (context.Chart.Courses[i]->Type)
+						{
+						case DifficultyType::Easy: diffStr = "Easy"; break;
+						case DifficultyType::Normal: diffStr = "Normal"; break;
+						case DifficultyType::Hard: diffStr = "Hard"; break;
+						case DifficultyType::Oni: diffStr = "Oni"; break;
+						case DifficultyType::OniUra: diffStr = "Ura"; break;
+						default: break;
+						}
+						std::string prefix = "[" + std::string(diffStr) + "] ";
+						allWarnings.push_back(prefix + issue.Message);
+					}
+				}
+			}
 
+			if (!allWarnings.empty())
+			{
+				exportCompatibilityPopup.IsOpen = true;
+				exportCompatibilityPopup.IsDirectoryExport = true;
+				exportCompatibilityPopup.FilePath = absoluteChartFilePath;
+				exportCompatibilityPopup.Encrypted = encrypted;
+				exportCompatibilityPopup.AllIssues = std::move(allWarnings);
+				return;
+			}
+		}
+
+		exportChartFuture = std::async(std::launch::async, [this, tempPathCopy = std::string(absoluteChartFilePath), encrypted]() mutable -> AsyncExportChartResult
+		{
+			AsyncExportChartResult result;
 			try
 			{
+				const std::string chartFilePath = std::move(tempPathCopy);
+
 				// 确保目录存在
-				auto chartDirectoryPath = std::filesystem::path(result.ChartFilePath);
+				auto chartDirectoryPath = std::filesystem::path(chartFilePath);
 				if (!std::filesystem::exists(chartDirectoryPath))
 				{
 					std::filesystem::create_directories(chartDirectoryPath);
@@ -1791,7 +1879,49 @@ namespace PeepoDrumKit
 					baseName = Path::GetFileName(context.ChartFilePath, false);
 				}
 
+				// 第一遍:检查所有难度是否存在兼容性问题
+				std::vector<std::string> allWarnings;
+				for (size_t i = 0; i < context.Chart.Courses.size(); ++i)
+				{
+					Fumen::FormatV2::FumenChart fumenChart = {};
+					std::vector<Fumen::ValidationIssue> issues;
+					if (ConvertChartProjectToFumen(context.Chart, fumenChart, i, &issues))
+					{
+						for (const auto& issue : issues)
+						{
+							const char* diffStr = "Unknown";
+							switch (context.Chart.Courses[i]->Type)
+							{
+							case DifficultyType::Easy: diffStr = "Easy"; break;
+							case DifficultyType::Normal: diffStr = "Normal"; break;
+							case DifficultyType::Hard: diffStr = "Hard"; break;
+							case DifficultyType::Oni: diffStr = "Oni"; break;
+							case DifficultyType::OniUra: diffStr = "Ura"; break;
+							default: break;
+							}
+							std::string prefix = "[" + std::string(diffStr) + "] ";
+							allWarnings.push_back(prefix + issue.Message);
+						}
+					}
+				}
+
+				if (!allWarnings.empty())
+				{
+					std::string message = "The following Fumen compatibility issues were found in one or more courses:\n\n";
+					for (const auto& warning : allWarnings)
+						message += "- " + warning + "\n";
+					message += "\nDo you want to continue with the export?";
+
+					auto mbResult = Shell::ShowMessageBox(message, "Fumen Export Warning", Shell::MessageBoxButtons::YesNo, Shell::MessageBoxIcon::Warning, ApplicationHost::GlobalState.NativeWindowHandle);
+					if (mbResult != Shell::MessageBoxResult::Yes)
+					{
+						result.Success = false;
+						return result;
+					}
+				}
+
 				// 遍历所有难度
+				std::vector<std::string> exportErrors;
 				for (size_t i = 0; i < context.Chart.Courses.size(); ++i)
 				{
 					const ChartCourse& course = *context.Chart.Courses[i];
@@ -1828,7 +1958,7 @@ namespace PeepoDrumKit
 					Fumen::FormatV2::FumenChart fumenChart = {};
 					if (!ConvertChartProjectToFumen(context.Chart, fumenChart, i))
 					{
-						printf("Failed to convert chart course %zu to Fumen format\n", i);
+						exportErrors.push_back("Failed to convert course index " + std::to_string(i));
 						continue;
 					}
 
@@ -1844,14 +1974,26 @@ namespace PeepoDrumKit
 
 					// 写入文件
 					File::WriteAllBytes(outputPath.string(), fileData.data(), fileData.size());
-					printf("Successfully exported Fumen file to '%s'\n", outputPath.string().c_str());
+				}
+
+				if (!exportErrors.empty())
+				{
+					result.Success = false;
+					result.Message = "Export finished with errors:\n";
+					for (const auto& err : exportErrors)
+						result.Message += "- " + err + "\n";
+				}
+				else
+				{
+					result.Success = true;
+					result.Message = "Successfully exported all courses to '" + chartFilePath + "'";
 				}
 			}
 			catch (const std::exception& e)
 			{
-				printf("Failed to export Fumen chart directory: %s\n", e.what());
+				result.Success = false;
+				result.Message = std::string("Failed to export Fumen directory: ") + e.what();
 			}
-
 			return result;
 		});
 	}
@@ -2102,6 +2244,17 @@ namespace PeepoDrumKit
 				context.SetCursorTime(context.GetCursorTime() + (previousChartSongOffset - context.Chart.SongOffset));
 
 			context.Undo.ClearAll();
+		}
+
+		if (exportChartFuture.valid() && future_is_ready(exportChartFuture))
+		{
+			AsyncExportChartResult result = exportChartFuture.get();
+			if (!result.Message.empty())
+			{
+				Shell::ShowMessageBox(result.Message, result.Success ? "Fumen Export Success" : "Fumen Export Error",
+					Shell::MessageBoxButtons::OK, result.Success ? Shell::MessageBoxIcon::Information : Shell::MessageBoxIcon::Error,
+					ApplicationHost::GlobalState.NativeWindowHandle);
+			}
 		}
 
 		// NOTE: Just in case there is something wrong with the animation, that could otherwise prevent the song from finishing to load

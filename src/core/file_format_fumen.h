@@ -64,6 +64,14 @@ namespace Fumen
     static constexpr std::string_view FilterName = "Taiko Nijiiro FumenV2 Chart";
     static constexpr std::string_view FilterSpec = "fumen";
 
+    struct ValidationIssue
+    {
+        enum class Severity { Error, Warning };
+        Severity Type;
+        std::string Message;
+        i32 MeasureIndex; // -1 if global
+    };
+
     enum ClearHPDefault : u32
     {
         ClearHP_Easy = 6000,
@@ -298,6 +306,10 @@ namespace Fumen
 
             // Check if chart has divergent paths
             bool HasDivergentPaths() const { return ChartHeader.HasDivergentPaths != 0; }
+
+            // Validate the chart for compatibility with the game
+            // Returns a list of issues found
+            std::vector<ValidationIssue> Validate() const;
         };
 
         // Reader for Fumen FormatV2 binary files

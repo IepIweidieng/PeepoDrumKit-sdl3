@@ -87,6 +87,36 @@ namespace Fumen::FormatV2
         Measures.clear();
     }
 
+    std::vector<ValidationIssue> FumenChart::Validate() const
+    {
+        std::vector<ValidationIssue> issues;
+
+        // 检查小节数量 (游戏限制 300)
+        if (Measures.size() > 300)
+        {
+            issues.push_back({ ValidationIssue::Severity::Warning, "Number of measures (" + std::to_string(Measures.size()) + ") exceeds the game limit of 300.", -1 });
+        }
+
+        // 检查每个小节的音符数量 (u16 限制)
+        for (size_t i = 0; i < Measures.size(); ++i)
+        {
+            const auto& measure = Measures[i];
+            auto checkNotes = [&](const std::vector<NoteData>& notes, const std::string& branchName)
+            {
+                if (notes.size() > 65535)
+                {
+                    issues.push_back({ ValidationIssue::Severity::Warning, "Measure " + std::to_string(i + 1) + " (" + branchName + ") has too many notes (" + std::to_string(notes.size()) + "), exceeding the limit of 65535.", static_cast<i32>(i) });
+                }
+            };
+
+            checkNotes(measure.NormalNotes, "Normal");
+            checkNotes(measure.AdvancedNotes, "Advanced");
+            checkNotes(measure.MasterNotes, "Master");
+        }
+
+        return issues;
+    }
+
     // ============================================================================
     // FumenChartReader Implementation
     // ============================================================================
@@ -301,10 +331,9 @@ namespace Fumen::FormatV2
         WriteData(buffer, measure.Data);
 
         // Write notes for all three branch paths
-        // Use default scroll speed of 1.0 if not specified
-        WriteMeasureNotes(buffer, measure.NormalNotes, 1.0f);
-        WriteMeasureNotes(buffer, measure.AdvancedNotes, 1.0f);
-        WriteMeasureNotes(buffer, measure.MasterNotes, 1.0f);
+        WriteMeasureNotes(buffer, measure.NormalNotes, measure.NormalNotesScrollSpeed);
+        WriteMeasureNotes(buffer, measure.AdvancedNotes, measure.AdvancedNotesScrollSpeed);
+        WriteMeasureNotes(buffer, measure.MasterNotes, measure.MasterNotesScrollSpeed);
     }
 
     std::vector<u8> FumenChartWriter::WriteToMemory(const FumenChart &chart)

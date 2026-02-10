@@ -1,6 +1,7 @@
 #include "chart.h"
 #include "core_build_info.h"
 #include <algorithm>
+#include <set>
 
 namespace PeepoDrumKit
 {
@@ -94,6 +95,7 @@ namespace PeepoDrumKit
 		case FumenNoteType::NoteType_Balloon: return NoteType::Balloon;
 		case FumenNoteType::NoteType_Bell: return NoteType::BalloonSpecial;
 		}
+		return NoteType::Count;
 	}
 	
 	static constexpr FumenNoteType ConvertFumenNoteType(NoteType noteType)
@@ -236,6 +238,9 @@ namespace PeepoDrumKit
 			}
 		}
 		out.ChartDuration = Max(out.ChartDuration, assumedDuration);
+		
+		if (!ApproxmiatelySame(currentScrollSpeed, 1.0f))
+			course->ScrollChanges.Sorted.emplace_back(ScrollChange { course->TempoMap.TimeToBeat(Time::Zero()), Complex(currentScrollSpeed, 0) });
 
 		for (auto it = inFumen.Measures.begin(); it != inFumen.Measures.end(); ++it)
 		{
@@ -719,14 +724,14 @@ namespace PeepoDrumKit
 		}
 	}
 
-	b8 ConvertChartProjectToFumen(const ChartProject& in, Fumen::FormatV2::FumenChart& out, size_t targetCourseIndex)
+	b8 ConvertChartProjectToFumen(const ChartProject& in, Fumen::FormatV2::FumenChart& out, size_t targetCourseIndex, std::vector<Fumen::ValidationIssue>* outIssues)
 	{
 		using namespace Fumen::FormatV2;
 
 		out.Clear();
 
-		// Fumen 格式只支持单个难度,所以只取第一个 Course
-		if (in.Courses.empty())
+		// Fumen 格式只支持单个难度,所以只取 targetCourseIndex
+		if (in.Courses.empty() || targetCourseIndex >= in.Courses.size())
 			return false;
 
 		const ChartCourse& inCourse = *in.Courses[targetCourseIndex];
@@ -774,60 +779,105 @@ namespace PeepoDrumKit
 		// 设置判定时间
 		out.ChartHeader.ResetJudgeTiming(static_cast<Difficulty>(inCourse.Type));
 
-		// 遍历小节
-		const Beat maxBeat = Max(FindCourseMaxUsedBeat(inCourse), inCourse.TempoMap.TimeToBeat(in.GetDurationOrDefault()));
-		std::vector<Measure> measures;
+		// 检查是否包含分歧
+		if (!inCourse.Notes_Expert.empty() || !inCourse.Notes_Master.empty())
+			out.ChartHeader.HasDivergentPaths = 1;
 
-		inCourse.TempoMap.ForEachBeatBar([&](const SortedTempoMap::ForEachBeatBarData& it)
-		{
+		// 1. 收集所有关键点（Split Points）以处理小节内的 BPM、Scroll 或 GoGo 变化
+		const Beat maxBeat = Max(FindCourseMaxUsedBeat(inCourse), inCourse.TempoMap.TimeToBeat(in.GetDurationOrDefault()));
+		
+		std::set<Beat> splitPoints;
+		std::set<Beat> tjaBarPoints;
+
+		inCourse.TempoMap.ForEachBeatBar([&](const SortedTempoMap::ForEachBeatBarData& it) {
 			if (it.Beat >= maxBeat)
 				return ControlFlow::Break;
-
-			if (it.IsBar)
-			{
-				Measure measure;
-				const Time measureTime = inCourse.TempoMap.BeatToTime(it.Beat);
-				
-				// 设置 BPM
-				const TempoChange* tempoChange = inCourse.TempoMap.Tempo.TryFindLastAtBeat(it.Beat);
-				measure.Data.BPM = (tempoChange != nullptr) ? tempoChange->Tempo.BPM : FallbackTempo.BPM;
-
-				// 设置 MeasureOffset (以毫秒为单位)
-				measure.Data.MeasureOffset = measureTime.ToMS_F32();
-
-				// 检查 GoGo Time
-				measure.Data.IsGogoTime = 0;
-				for (const GoGoRange& gogo : inCourse.GoGoRanges)
-				{
-					const Beat gogoEnd = gogo.BeatTime + gogo.BeatDuration;
-					if (it.Beat >= gogo.BeatTime && it.Beat < gogoEnd)
-					{
-						measure.Data.IsGogoTime = 1;
-						break;
-					}
-				}
-
-				// 检查小节线可见性
-				const BarLineChange* barLineChange = inCourse.BarLineChanges.TryFindLastAtBeat(it.Beat);
-				measure.Data.IsBarLineVisible = (barLineChange != nullptr) ? barLineChange->IsVisible : 1;
-
-				// 设置分歧点要求为 FFFFFFFF (不使用分歧)
-				measure.Data.InNormalToAdvancedDivergePointReq = 0xFFFFFFFF;
-				measure.Data.InNormalToMasterDivergePointReq = 0xFFFFFFFF;
-				measure.Data.InAdvancedToMasterDivergePointReq = 0xFFFFFFFF;
-				measure.Data.InAdvancedKeepAdvancedDivergePointReq = 0xFFFFFFFF;
-				measure.Data.InMasterToAdvancedDivergePointReq = 0xFFFFFFFF;
-				measure.Data.InMasterKeepMasterDivergePointReq = 0xFFFFFFFF;
-				measure.Data._Padding2 = 0;
-
-				// 获取该小节的滚动速度
-				const ScrollChange* scrollChange = inCourse.ScrollChanges.TryFindLastAtBeat(it.Beat);
-				measure.NormalNotesScrollSpeed = (scrollChange != nullptr) ? scrollChange->ScrollSpeed.GetRealPart() : 1.0f;
-
-				measures.push_back(measure);
+			if (it.IsBar && it.Beat <= maxBeat) {
+				splitPoints.insert(it.Beat);
+				tjaBarPoints.insert(it.Beat);
 			}
 			return ControlFlow::Fallthrough;
 		});
+
+		for (const auto& tempo : inCourse.TempoMap.Tempo.Sorted) {
+			if (tempo.Beat < maxBeat) splitPoints.insert(tempo.Beat);
+		}
+
+		for (const auto& scroll : inCourse.ScrollChanges.Sorted) {
+			if (scroll.BeatTime < maxBeat) splitPoints.insert(scroll.BeatTime);
+		}
+
+		for (const auto& gogo : inCourse.GoGoRanges.Sorted) {
+			if (gogo.BeatTime < maxBeat) splitPoints.insert(gogo.BeatTime);
+			if (gogo.BeatTime + gogo.BeatDuration < maxBeat) splitPoints.insert(gogo.BeatTime + gogo.BeatDuration);
+		}
+
+		// Ensure there's a split point at the very beginning to capture initial BPM/Scroll/GoGo
+		splitPoints.insert(Beat::Zero());
+
+		std::vector<Measure> measures;
+		std::vector<Beat> measureStartBeats;
+		for (Beat currentBeat : splitPoints)
+		{
+			if (currentBeat >= maxBeat && !measures.empty())
+				break;
+
+			Measure measure;
+			const Time measureTime = inCourse.TempoMap.BeatToTime(currentBeat);
+
+			// 设置 BPM
+			const TempoChange* tempoChange = inCourse.TempoMap.Tempo.TryFindLastAtBeat(currentBeat);
+			measure.Data.BPM = (tempoChange != nullptr) ? tempoChange->Tempo.BPM : FallbackTempo.BPM;
+
+			// 设置 MeasureOffset (以毫秒为单位，相对于音频起始，即减去 SongOffset)
+			measure.Data.MeasureOffset = (measureTime - in.SongOffset).ToMS_F32();
+
+			// 检查 GoGo Time
+			measure.Data.IsGogoTime = 0;
+			for (const GoGoRange& gogo : inCourse.GoGoRanges)
+			{
+				const Beat gogoEnd = gogo.BeatTime + gogo.BeatDuration;
+				if (currentBeat >= gogo.BeatTime && currentBeat < gogoEnd)
+				{
+					measure.Data.IsGogoTime = 1;
+					break;
+				}
+			}
+
+			// 检查小节线可见性
+			if (tjaBarPoints.count(currentBeat))
+			{
+				const BarLineChange* barLineChange = inCourse.BarLineChanges.TryFindLastAtBeat(currentBeat);
+				measure.Data.IsBarLineVisible = (barLineChange != nullptr) ? barLineChange->IsVisible : 1;
+			}
+			else
+			{
+				measure.Data.IsBarLineVisible = 0;
+			}
+
+			// 设置分歧点要求为 FFFFFFFF (不使用分歧)
+			measure.Data.InNormalToAdvancedDivergePointReq = 0xFFFFFFFF;
+			measure.Data.InNormalToMasterDivergePointReq = 0xFFFFFFFF;
+			measure.Data.InAdvancedToMasterDivergePointReq = 0xFFFFFFFF;
+			measure.Data.InAdvancedKeepAdvancedDivergePointReq = 0xFFFFFFFF;
+			measure.Data.InMasterToAdvancedDivergePointReq = 0xFFFFFFFF;
+			measure.Data.InMasterKeepMasterDivergePointReq = 0xFFFFFFFF;
+			measure.Data._Padding2 = 0;
+
+			// 获取该小节的滚动速度 (从 ScrollChanges 列表中查找当前或之前的最后一次变化)
+			f32 scrollSpeed = 1.0f;
+			for (const auto& s : inCourse.ScrollChanges.Sorted)
+			{
+				if (s.BeatTime <= currentBeat)
+					scrollSpeed = s.ScrollSpeed.GetRealPart();
+			}
+			measure.NormalNotesScrollSpeed = scrollSpeed;
+			measure.AdvancedNotesScrollSpeed = scrollSpeed;
+			measure.MasterNotesScrollSpeed = scrollSpeed;
+
+			measures.push_back(measure);
+			measureStartBeats.push_back(currentBeat);
+		}
 
 		if (measures.empty())
 		{
@@ -845,74 +895,86 @@ namespace PeepoDrumKit
 			measure.Data.InMasterKeepMasterDivergePointReq = 0xFFFFFFFF;
 			measure.NormalNotesScrollSpeed = 1.0f;
 			measures.push_back(measure);
+			measureStartBeats.push_back(Beat::Zero());
 		}
 
 		// 将音符分配到对应的小节中
-		for (const Note& inNote : inCourse.Notes_Normal)
+		auto convertNotesIntoMeasures = [&](const SortedNotesList& inNotes, std::vector<NoteData> Measure::* memberPtr)
 		{
-			// 找到该音符所属的小节
-			Measure* targetMeasure = nullptr;
-			size_t measureIndex = 0;
-			for (size_t i = 0; i < measures.size(); ++i)
+			size_t lastMeasureIndex = 0;
+			for (const Note& inNote : inNotes)
 			{
-				const Beat measureBeat = inCourse.TempoMap.TimeToBeat(Time::FromMS(measures[i].Data.MeasureOffset));
-				const Beat nextMeasureBeat = (i + 1 < measures.size()) 
-					? inCourse.TempoMap.TimeToBeat(Time::FromMS(measures[i + 1].Data.MeasureOffset))
-					: maxBeat;
-
-				if (inNote.BeatTime >= measureBeat && inNote.BeatTime < nextMeasureBeat)
+				// 找到该音符所属的小节 (利用音符是按时间排序的特性)
+				Measure* targetMeasure = nullptr;
+				for (size_t i = lastMeasureIndex; i < measures.size(); ++i)
 				{
-					targetMeasure = &measures[i];
-					measureIndex = i;
-					break;
+					const Beat measureBeat = measureStartBeats[i];
+					const Beat nextMeasureBeat = (i + 1 < measures.size())
+						? measureStartBeats[i + 1]
+						: maxBeat;
+
+					if (inNote.BeatTime >= measureBeat && inNote.BeatTime < nextMeasureBeat)
+					{
+						targetMeasure = &measures[i];
+						lastMeasureIndex = i;
+						break;
+					}
 				}
-			}
 
-			if (targetMeasure == nullptr)
-				continue;
+				if (targetMeasure == nullptr)
+					continue;
 
-			NoteData fumenNote;
-			fumenNote.Type = ConvertFumenNoteType(inNote.Type);
-			
-			if (fumenNote.Type == Fumen::FormatV2::NoteType_None)
-				continue;
+				NoteData fumenNote;
+				fumenNote.Type = ConvertFumenNoteType(inNote.Type);
 
-			// 计算音符在小节内的偏移 (毫秒)
-			const Time measureTime = Time::FromMS(targetMeasure->Data.MeasureOffset);
-			const Time noteTime = inCourse.TempoMap.BeatToTime(inNote.BeatTime) + inNote.TimeOffset;
-			fumenNote.NoteOffset = (noteTime - measureTime).ToMS_F32();
+				if (fumenNote.Type == Fumen::FormatV2::NoteType_None)
+					continue;
 
-			fumenNote._Padding1 = 0;
-			fumenNote.InitialScoreValue = 0;
-			fumenNote.ScoreDifferenceTimes4 = 0;
-			fumenNote.BalloonHitCount_Old = 0;
-			fumenNote.Length = 0.0f;
+				// 计算音符在小节内的偏移 (毫秒，相对于小节起始)
+				const Beat measureStartBeat = measureStartBeats[lastMeasureIndex];
+				const Time absoluteMeasureTime = inCourse.TempoMap.BeatToTime(measureStartBeat);
+				const Time absoluteNoteTime = inCourse.TempoMap.BeatToTime(inNote.BeatTime) + inNote.TimeOffset;
+				fumenNote.NoteOffset = (absoluteNoteTime - absoluteMeasureTime).ToMS_F32();
 
-			// 处理气球和连打音符
-			if (IsBalloonNote(inNote.Type))
-			{
-				fumenNote.InitialScoreValue = static_cast<u16>(inNote.BalloonPopCount);
-				if (inNote.BeatDuration > Beat::Zero())
+				fumenNote._Padding1 = 0;
+				fumenNote.InitialScoreValue = 0;
+				fumenNote.ScoreDifferenceTimes4 = 0;
+				fumenNote.BalloonHitCount_Old = 0;
+				fumenNote.Length = 0.0f;
+
+				// 处理气球和连打音符
+				if (IsBalloonNote(inNote.Type))
 				{
-					const Time noteDuration = inCourse.TempoMap.BeatToTime(inNote.BeatTime + inNote.BeatDuration) - inCourse.TempoMap.BeatToTime(inNote.BeatTime);
-					fumenNote.Length = noteDuration.ToMS_F32();
+					fumenNote.InitialScoreValue = static_cast<u16>(inNote.BalloonPopCount);
+					if (inNote.BeatDuration > Beat::Zero())
+					{
+						const Time noteDuration = inCourse.TempoMap.BeatToTime(inNote.BeatTime + inNote.BeatDuration) - inCourse.TempoMap.BeatToTime(inNote.BeatTime);
+						fumenNote.Length = noteDuration.ToMS_F32();
+					}
 				}
-			}
-			else if (IsDrumrollNote(inNote.Type))
-			{
-				if (inNote.BeatDuration > Beat::Zero())
+				else if (IsDrumrollNote(inNote.Type))
 				{
-					const Time noteDuration = inCourse.TempoMap.BeatToTime(inNote.BeatTime + inNote.BeatDuration) - inCourse.TempoMap.BeatToTime(inNote.BeatTime);
-					fumenNote.Length = noteDuration.ToMS_F32();
+					if (inNote.BeatDuration > Beat::Zero())
+					{
+						const Time noteDuration = inCourse.TempoMap.BeatToTime(inNote.BeatTime + inNote.BeatDuration) - inCourse.TempoMap.BeatToTime(inNote.BeatTime);
+						fumenNote.Length = noteDuration.ToMS_F32();
+					}
 				}
-			}
 
-			targetMeasure->NormalNotes.push_back(fumenNote);
-		}
+				(targetMeasure->*memberPtr).push_back(fumenNote);
+			}
+		};
+
+		convertNotesIntoMeasures(inCourse.Notes_Normal, &Measure::NormalNotes);
+		convertNotesIntoMeasures(inCourse.Notes_Expert, &Measure::AdvancedNotes);
+		convertNotesIntoMeasures(inCourse.Notes_Master, &Measure::MasterNotes);
 
 		// 设置 NumberOfMeasures 并添加到 out
 		out.ChartHeader.NumberOfMeasures = static_cast<u32>(measures.size());
 		out.Measures = std::move(measures);
+
+		if (outIssues != nullptr)
+			*outIssues = out.Validate();
 
 		return true;
 	}

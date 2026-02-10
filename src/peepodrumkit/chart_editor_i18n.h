@@ -140,6 +140,7 @@ X("ACT_TEST_SHOW_TJA_EXPORT_VIEW",					"Show TJA Export View") \
 X("ACT_TEST_SHOW_IMGUI_DEMO",						"Show ImGui Demo") \
 X("ACT_TEST_SHOW_IMGUI_STYLE_EDITOR",				"Show ImGui Style Editor") \
 X("ACT_TEST_RESET_STYLE_COLORS",					"Reset Style Colors") \
+X("INFO_MSGBOX_FUMEN_COMPATIBILITY",				"Fumen Export Compatibility") \
 /* help menu */ \
 X("INFO_HELP_COPYRIGHT_YEAR",						"Copyright (c) 2022") \
 X("INFO_HELP_BUILD_TIME",							"Build Time:") \
