@@ -129,7 +129,8 @@ target("PeepoDrumKit")
     end
 
     if is_os("macosx") then
-        destDir = path.join("Contents", "Resources")
+        -- destDir = path.join("Contents", "Resources")
+        destDir = ""
         add_installfiles("src_res/PeepoDrumKit.icns", {prefixdir = destDir})
     else
         destDir = "bin"
