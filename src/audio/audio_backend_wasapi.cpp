@@ -399,6 +399,13 @@ namespace Audio
 	b8 WASAPIBackend::OpenStartStream(const BackendStreamParam &param, BackendRenderCallback callback) { return impl->OpenStartStream(param, std::move(callback)); }
 	b8 WASAPIBackend::StopCloseStream() { return impl->StopCloseStream(); }
 	b8 WASAPIBackend::IsOpenRunning() const { return impl->IsOpenRunning(); }
+
+	u32 WASAPIBackend::GetVariantCount() const { return 2; }
+	cstr WASAPIBackend::GetVariantName(u32 index) const
+	{
+		static constexpr cstr names[] = { "WASAPI (Shared)", "WASAPI (Exclusive)" };
+		return (index < 2) ? names[index] : "Invalid";
+	}
 }
 
 #endif // _WIN32

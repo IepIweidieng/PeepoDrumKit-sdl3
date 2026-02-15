@@ -17,7 +17,9 @@ namespace Audio
 		
 #ifdef _WIN32
 		return std::make_unique<WASAPIBackend>();
-#endif // _WIN32
+#elif defined(__APPLE__)
+		return std::make_unique<CoreAudioBackend>();
+#endif
 		// Use LibSoundIO as fallback/default
 		return std::make_unique<LibSoundIOBackend>();
 	}
@@ -750,6 +752,9 @@ namespace Audio
 			impl->CurrentBackend = CreateBackendInterface(value);
 		}
 	}
+
+	u32 AudioEngine::GetBackendVariantCount() const { return impl->CurrentBackend ? impl->CurrentBackend->GetVariantCount() : 0; }
+	cstr AudioEngine::GetBackendVariantName(u32 index) const { return impl->CurrentBackend ? impl->CurrentBackend->GetVariantName(index) : "None"; }
 
 	b8 AudioEngine::GetIsStreamOpenRunning() const
 	{

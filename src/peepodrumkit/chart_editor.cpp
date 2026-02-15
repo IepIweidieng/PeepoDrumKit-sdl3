@@ -564,10 +564,13 @@ namespace PeepoDrumKit
 				Gui::EndMenu();
 			}
 
-			static constexpr Audio::Backend availableBackends[] = { Audio::Backend::PlatformShared, Audio::Backend::PlatformExclusive, };
-			static constexpr auto backendToString = [](Audio::Backend backend) -> cstr
+			auto getActiveBackendName = []() -> cstr
 			{
-				return (backend < Audio::Backend::Count) ? Audio::BackendNames[static_cast<size_t>(backend)] : "Invalid";
+				const Audio::Backend current = Audio::Engine.GetBackend();
+				const u32 index = (current == Audio::Backend::PlatformExclusive) ? 1 : 0;
+				if (index < Audio::Engine.GetBackendVariantCount())
+					return Audio::Engine.GetBackendVariantName(index);
+				return Audio::Engine.GetBackendVariantName(0);
 			};
 
 			char performanceTextBuffer[64];
@@ -577,12 +580,22 @@ namespace PeepoDrumKit
 			#define AudioDeviceMenuLabel "##audioTextMenu"
 			if (Audio::Engine.GetIsStreamOpenRunning())
 			{
-				sprintf_s(audioTextBuffer, "[ %gkHz %zubit %dch ~%.0fms %s ]" AudioDeviceMenuLabel,
-					static_cast<f64>(Audio::Engine.OutputSampleRate) / 1000.0,
-					sizeof(i16) * BitsPerByte,
-					Audio::Engine.OutputChannelCount,
-					Audio::FramesToTime(Audio::Engine.GetBufferFrameSize(), Audio::Engine.OutputSampleRate).ToMS(),
-					backendToString(Audio::Engine.GetBackend()));
+				auto bufferLatency = Audio::FramesToTime(Audio::Engine.GetBufferFrameSize(), Audio::Engine.OutputSampleRate).ToMS();
+				if (bufferLatency < 1.0) {
+					sprintf_s(audioTextBuffer, "[ %gkHz %zubit %dch ~%.2fms %s ]" AudioDeviceMenuLabel,
+						static_cast<f64>(Audio::Engine.OutputSampleRate) / 1000.0,
+						sizeof(i16) * BitsPerByte,
+						Audio::Engine.OutputChannelCount,
+						bufferLatency,
+						getActiveBackendName());
+				} else {
+					sprintf_s(audioTextBuffer, "[ %gkHz %zubit %dch ~%.0fms %s ]" AudioDeviceMenuLabel,
+						static_cast<f64>(Audio::Engine.OutputSampleRate) / 1000.0,
+						sizeof(i16) * BitsPerByte,
+						Audio::Engine.OutputChannelCount,
+						bufferLatency,
+						getActiveBackendName());
+				}
 			}
 			else
 			{
@@ -830,10 +843,13 @@ namespace PeepoDrumKit
 					Gui::Separator();
 
 					const Audio::Backend currentBackend = Audio::Engine.GetBackend();
-					for (const Audio::Backend backendType : availableBackends)
+					for (u32 i = 0; i < Audio::Engine.GetBackendVariantCount(); i++)
 					{
+						const Audio::Backend backendType = (i == 0) ? Audio::Backend::PlatformShared : Audio::Backend::PlatformExclusive;
+						const cstr variantName = Audio::Engine.GetBackendVariantName(i);
+
 						char labelBuffer[128];
-						sprintf_s(labelBuffer, UI_Str("ACT_AUDIO_USE_FMT_%s_DEVICE"), backendToString(backendType));
+						sprintf_s(labelBuffer, UI_Str("ACT_AUDIO_USE_FMT_%s_DEVICE"), variantName);
 						if (Gui::MenuItem(labelBuffer, nullptr, (backendType == currentBackend), (backendType != currentBackend)))
 							Audio::Engine.SetBackend(backendType);
 					}
