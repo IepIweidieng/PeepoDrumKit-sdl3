@@ -89,20 +89,6 @@ namespace Audio
 		// Default = WASAPI_Exclusive,
 		Default = PlatformShared,
 	};
-	
-#ifdef _WIN32
-	constexpr cstr BackendNames[EnumCount<Backend>] =
-	{
-		"WASAPI (Shared)",
-		"WASAPI (Exclusive)",
-	};
-#else
-	constexpr cstr BackendNames[EnumCount<Backend>] =
-	{
-		"LibSoundIO (Shared)",
-		"LibSoundIO (Raw / Exclusive)",
-	};
-#endif
 
 	enum class PanLaw : u8
 	{
@@ -189,6 +175,9 @@ namespace Audio
 	public:
 		Backend GetBackend() const;
 		void SetBackend(Backend value);
+
+		u32 GetBackendVariantCount() const;
+		cstr GetBackendVariantName(u32 index) const;
 
 		b8 GetIsStreamOpenRunning() const;
 		b8 GetAllVoicesAreIdle() const;

@@ -70,6 +70,10 @@ target("PeepoDrumKit")
     add_files("src/peepodrumkit/*.cpp")
     add_files("src/audio/*.c", "src/audio/*.cpp")
     add_files("src/imgui/*.cpp")
+
+    if is_os("macosx") then
+        add_frameworks("CoreAudio", "AudioToolbox", "AudioUnit", "CoreFoundation")
+    end
     add_files("src/imgui/ImGuiColorTextEdit/*.cpp")
     add_files("src/imgui/extension/*.cpp")
 
@@ -124,14 +128,13 @@ target("PeepoDrumKit")
 
     if is_os("macosx") then
         -- destDir = path.join("Contents", "Resources")
-        destDir = ""
+        destDir = "./"
         add_installfiles("src_res/PeepoDrumKit.icns", {prefixdir = destDir})
     else
-        destDir = "bin"
+        destDir = "./bin"
     end
     assetDir = path.join(destDir, "assets")
 
-    add_installfiles("(locales/*.*)", {prefixdir = destDir})
-    add_installfiles("assets*/(*.*)", {prefixdir = assetDir})
-    add_installfiles("assets*/(audio/*.*)", {prefixdir = assetDir})
-    add_installfiles("assets*/(graphics/*.*)", {prefixdir = assetDir})
+    add_installfiles("(locales/**)", {prefixdir = destDir})
+    add_installfiles("assets/(**)", {prefixdir = assetDir})
+    add_installfiles("assets_override/(**)", {prefixdir = assetDir})

@@ -28,6 +28,9 @@ namespace Audio
 		virtual b8 OpenStartStream(const BackendStreamParam &param, BackendRenderCallback callback) = 0;
 		virtual b8 StopCloseStream() = 0;
 		virtual b8 IsOpenRunning() const = 0;
+
+		virtual u32 GetVariantCount() const = 0;
+		virtual cstr GetVariantName(u32 index) const = 0;
 	};
 
 #ifdef _WIN32
@@ -42,11 +45,35 @@ namespace Audio
 		b8 StopCloseStream() override;
 		b8 IsOpenRunning() const override;
 
+		u32 GetVariantCount() const override;
+		cstr GetVariantName(u32 index) const override;
+
 	private:
 		struct Impl;
 		std::unique_ptr<Impl> impl;
 	};
 #endif // _WIN32
+
+#ifdef __APPLE__
+	class CoreAudioBackend : public IAudioBackend
+	{
+	public:
+		CoreAudioBackend();
+		~CoreAudioBackend();
+
+	public:
+		b8 OpenStartStream(const BackendStreamParam &param, BackendRenderCallback callback) override;
+		b8 StopCloseStream() override;
+		b8 IsOpenRunning() const override;
+
+		u32 GetVariantCount() const override;
+		cstr GetVariantName(u32 index) const override;
+
+	private:
+		struct Impl;
+		std::unique_ptr<Impl> impl;
+	};
+#endif // __APPLE__
 
 	class LibSoundIOBackend : public IAudioBackend
 	{
@@ -58,6 +85,9 @@ namespace Audio
 		b8 OpenStartStream(const BackendStreamParam &param, BackendRenderCallback callback) override;
 		b8 StopCloseStream() override;
 		b8 IsOpenRunning() const override;
+
+		u32 GetVariantCount() const override;
+		cstr GetVariantName(u32 index) const override;
 
 	private:
 		struct Impl;

@@ -275,4 +275,10 @@ namespace Audio
 	b8 LibSoundIOBackend::OpenStartStream(const BackendStreamParam &param, BackendRenderCallback callback) { return impl->OpenStartStream(param, std::move(callback)); }
 	b8 LibSoundIOBackend::StopCloseStream() { return impl->StopCloseStream(); }
 	b8 LibSoundIOBackend::IsOpenRunning() const { return impl->IsOpenRunning(); }
+	u32 LibSoundIOBackend::GetVariantCount() const { return 2; }
+	cstr LibSoundIOBackend::GetVariantName(u32 index) const
+	{
+		static constexpr cstr names[] = { "LibSoundIO (Shared)", "LibSoundIO (Exclusive)" };
+		return (index < 2) ? names[index] : "Invalid";
+	}
 }
