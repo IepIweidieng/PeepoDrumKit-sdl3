@@ -724,6 +724,47 @@ namespace PeepoDrumKit
 		}
 	}
 
+	size_t CalculateFumenMeasureCount(const ChartProject& in, const ChartCourse& inCourse)
+	{
+		const Beat maxBeat = Max(FindCourseMaxUsedBeat(inCourse), inCourse.TempoMap.TimeToBeat(in.GetDurationOrDefault()));
+
+		std::set<Beat> splitPoints;
+
+		inCourse.TempoMap.ForEachBeatBar([&](const SortedTempoMap::ForEachBeatBarData& it) {
+			if (it.Beat >= maxBeat)
+				return ControlFlow::Break;
+			if (it.IsBar && it.Beat <= maxBeat) {
+				splitPoints.insert(it.Beat);
+			}
+			return ControlFlow::Fallthrough;
+		});
+
+		for (const auto& tempo : inCourse.TempoMap.Tempo.Sorted) {
+			if (tempo.Beat < maxBeat) splitPoints.insert(tempo.Beat);
+		}
+
+		for (const auto& scroll : inCourse.ScrollChanges.Sorted) {
+			if (scroll.BeatTime < maxBeat) splitPoints.insert(scroll.BeatTime);
+		}
+
+		for (const auto& gogo : inCourse.GoGoRanges.Sorted) {
+			if (gogo.BeatTime < maxBeat) splitPoints.insert(gogo.BeatTime);
+			if (gogo.BeatTime + gogo.BeatDuration < maxBeat) splitPoints.insert(gogo.BeatTime + gogo.BeatDuration);
+		}
+
+		splitPoints.insert(Beat::Zero());
+
+		size_t measureCount = 0;
+		for (Beat currentBeat : splitPoints)
+		{
+			if (currentBeat >= maxBeat && measureCount > 0)
+				break;
+			measureCount++;
+		}
+
+		return measureCount;
+	}
+
 	b8 ConvertChartProjectToFumen(const ChartProject& in, Fumen::FormatV2::FumenChart& out, size_t targetCourseIndex, std::vector<Fumen::ValidationIssue>* outIssues)
 	{
 		using namespace Fumen::FormatV2;

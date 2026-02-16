@@ -670,6 +670,7 @@ namespace PeepoDrumKit
 				int _maxCombo = _donCount + _kaCount + _kaDonCount;
 
 				f64 _density = _maxCombo / chart.ChartDuration.Seconds;
+				size_t _fumenMeasures = CalculateFumenMeasureCount(chart, course);
 
 				Gui::PushStyleColor(ImGuiCol_Text, colors.RedDark);
 				Gui::PushFont(FontMain, GuiScaleI32_AtTarget(FontBaseSizes::Large));
@@ -681,6 +682,10 @@ namespace PeepoDrumKit
 
 				Gui::PushStyleColor(ImGuiCol_Text, colors.RedDark);
 				Gui::Text("Density: %.3f hit/s", _density);
+				Gui::PopStyleColor();
+
+				Gui::PushStyleColor(ImGuiCol_Text, (_fumenMeasures > 300) ? IM_COL32(255, 100, 100, 255) : colors.RedDark);
+				Gui::Text("Fumen Measures: %zu%s", _fumenMeasures, (_fumenMeasures > 300) ? " (Limit: 300)" : "");
 				Gui::PopStyleColor();
 
 				Gui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 122, 122, 255));

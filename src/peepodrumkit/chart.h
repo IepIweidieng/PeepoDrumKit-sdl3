@@ -477,6 +477,7 @@ namespace PeepoDrumKit
 	b8 CreateChartProjectFromTJA(const TJA::ParsedTJA& inTJA, ChartProject& out);
 	b8 ConvertChartProjectToTJA(const ChartProject& in, TJA::ParsedTJA& out, b8 includePeepoDrumKitComment = true);
 	b8 ConvertChartProjectToFumen(const ChartProject& in, Fumen::FormatV2::FumenChart& out, size_t targetCourseIndex = 0, std::vector<Fumen::ValidationIssue>* outIssues = nullptr);
+	size_t CalculateFumenMeasureCount(const ChartProject& in, const ChartCourse& inCourse);
 }
 
 namespace PeepoDrumKit
