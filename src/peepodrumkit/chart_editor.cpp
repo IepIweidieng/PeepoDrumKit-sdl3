@@ -63,6 +63,16 @@ namespace PeepoDrumKit
 
 	static b8 GlobalLastSetRequestExclusiveDeviceAccessAudioSetting = {};
 	static i32 GlobalLastSetAudioBufferFrameSize = {};
+	static std::string GlobalLastSetSoundAPI = {};
+
+	static Audio::SoundAPI SoundAPIFromString(std::string_view s)
+	{
+		if (s == "alsa")       return Audio::SoundAPI::ALSA;
+		if (s == "pulseaudio") return Audio::SoundAPI::PulseAudio;
+		if (s == "jack")       return Audio::SoundAPI::Jack;
+		if (s == "dummy")      return Audio::SoundAPI::Dummy;
+		return Audio::SoundAPI::Auto;
+	}
 
 	ChartEditor::ChartEditor()
 	{
@@ -77,6 +87,8 @@ namespace PeepoDrumKit
 		GlobalLastSetRequestExclusiveDeviceAccessAudioSetting = *Settings.Audio.RequestExclusiveDeviceAccess;
 		Audio::Engine.SetBackend(*Settings.Audio.RequestExclusiveDeviceAccess ? Audio::Backend::PlatformExclusive : Audio::Backend::PlatformShared);
 		Audio::Engine.SetBufferFrameSize(*Settings.Audio.BufferFrameSize);
+		GlobalLastSetSoundAPI = *Settings.Audio.SoundAPI;
+		Audio::Engine.SetSoundAPI(SoundAPIFromString(*Settings.Audio.SoundAPI));
 		Audio::Engine.SetMasterVolume(0.75f);
 		if (*Settings.Audio.OpenDeviceOnStartup)
 			Audio::Engine.OpenStartStream();
@@ -736,7 +748,7 @@ namespace PeepoDrumKit
 						{
 							char buffer[96]; sprintf_s(buffer, "%s ★%d%s %s###Course_%p",
 								UI_StrRuntime(DifficultyTypeNames[EnumToIndex(course->Type)]),
-								static_cast<i32>(course->Level), 
+								static_cast<i32>(course->Level),
 								(course->Decimal == DifficultyLevelDecimal::None) ? "" : ((course->Decimal >= DifficultyLevelDecimal::PlusThreshold) ? "+" : ""),
 								GetStyleName(course->Style, course->PlayerSide).data(),
 								course.get());
@@ -944,6 +956,11 @@ namespace PeepoDrumKit
 		{
 			Audio::Engine.SetBufferFrameSize(*Settings.Audio.BufferFrameSize);
 			GlobalLastSetAudioBufferFrameSize = *Settings.Audio.BufferFrameSize;
+		}
+		if (GlobalLastSetSoundAPI != *Settings.Audio.SoundAPI)
+		{
+			Audio::Engine.SetSoundAPI(SoundAPIFromString(*Settings.Audio.SoundAPI));
+			GlobalLastSetSoundAPI = *Settings.Audio.SoundAPI;
 		}
 		EnableGuiScaleAnimation = *Settings.Animation.EnableGuiScaleAnimation;
 
@@ -1499,7 +1516,7 @@ namespace PeepoDrumKit
 		timeline.Camera.PositionTarget.x = TimelineCameraBaseScrollX;
 		timeline.Camera.ZoomTarget = vec2(1.0f);
 	}
-	
+
 	void ChartEditor::CreateNewDifficulty(ChartContext& context, DifficultyType difficulty)
 	{
 		auto ccourse = std::make_unique<ChartCourse>();
