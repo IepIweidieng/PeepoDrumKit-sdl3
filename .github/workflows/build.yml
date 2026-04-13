@@ -1,4 +1,6 @@
-name: Build and Package
+# Original script from totoa553/OpenTaiko and DragonRatTiger/OpenTaiko
+
+name: Build PeepoDrumKit
 
 on:
   push:
@@ -6,8 +8,228 @@ on:
   pull_request:
     branches: [master, main]
 
+defaults:
+  run:
+    shell: pwsh
+
 jobs:
+  check_version:
+    if: github.event_name == 'push'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Give the default GITHUB_TOKEN write permission to commit and push the
+      # added or changed files to the repository.
+      contents: write
+
+    env:
+      messagePathPrefix: COMMIT_MSG_
+      versionsPath: COMMIT_VERSIONS
+      coreVersionHPath: src/core/core_version.h
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Observe the Directory
+        run: ls
+
+      - name: Get each commit message for version checking
+        id: get-latest-commits
+        run: |
+          $messages = ConvertFrom-Json $env:messagesJson
+          $nMessages = $messages.Count
+          echo "nMessages=$nMessages" >> $env:GITHUB_ENV
+          for ($c = 0; $c -lt $nMessages; ++$c) {
+              New-Item -Path ($env:messagePathPrefix + $c) -Type file
+              $message = $messages | Select-Object -Index $c
+              echo $message > ($env:messagePathPrefix + $c)
+          }
+        env:
+          messagesJson: ${{ toJSON(github.event.commits.*.message) }}
+
+      - name: Get project version from core_version.h
+        id: get-version
+        run: |
+          $core_version_h = Get-Content $env:coreVersionHPath
+          # Ensure list type for []-indexing
+          if ($core_version_h.Count -eq 1) {
+              $core_version_h = , $core_version_h
+          }
+
+          for ($i = 0; $i -lt $core_version_h.Count; ++$i) {
+              if (-not ($core_version_h[$i] -match '^\s*#define\s+PEEPO_VERSION_STR\s+"v?(?<version>[^"]*)".*$')) {
+                  continue
+              }
+              $projectVersion = $matches['version']
+              echo "projectVersion=$projectVersion" >> $env:GITHUB_ENV
+              break
+          }
+
+      - name: Extract latest version info from each commit message
+        id: extract-versions
+        run: |
+          $hasVersion = $false
+          $version = $env:projectVersion
+          New-Item -Path $env:versionsPath -Type file
+          for ($c = 0; $c -lt $env:nMessages; ++$c) {
+              $commitSubject = Get-Content -Path ($env:messagePathPrefix + $c) | Select-Object -First 1
+              if ($commitSubject -match '^v?(?<version>[0-9]+(?:\.[0-9]+(?:\.[0-9]+(?:\.[0-9]+)?)?)?(?:[^0-9]+\S*)?)\s-\s') {
+                  $hasVersion = $true
+                  $version = $matches['version']
+              }
+              if ($c -eq 0) {
+                  echo "versionFirst=$version" >> $env:GITHUB_ENV
+              }
+              echo $version >> $env:versionsPath
+          }
+
+          # check the latest version
+          if ($hasVersion) {
+              Write-Host "Extracted latest version is: $version"
+              echo "version=$version" >> $env:GITHUB_ENV
+          } else {
+              Write-Host "No valid version found in the latest commit messages. Skipping bump."
+              echo "version=" >> $env:GITHUB_ENV
+          }
+          echo "versionLast=$version" >> $env:GITHUB_ENV
+          echo "versionLast=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Bump PeepoDrumKit version if necessary
+        if: env.version != ''
+        run: |
+          $newVersion = $env:version
+          Write-Host "Updating version in core_version.h to $newVersion"
+          $version4 = "0,0,0,0"
+          if ($newVersion -match '^v?(?:(?<versionM>[0-9]+)(?:\.(?<versionN>[0-9]+)(?:\.(?<versionP>[0-9]+)(?:\.(?<versionQ>[0-9]+))?)?)?(?:[^0-9]+\S*)?)$') {
+            $versionM = $matches['versionM']
+            $versionN = $matches['versionN'] ?? 0
+            $versionP = $matches['versionP'] ?? 0
+            $versionQ = $matches['versionQ'] ?? 0
+            $version4 = "$versionM,$versionN,$versionP,$versionQ"
+          }
+          (Get-Content $env:coreVersionHPath) `
+            -replace '^\s*#define\s+PEEPO_VERSION_STR\s+.*$',"#define PEEPO_VERSION_STR `"v$newVersion`"" `
+            -replace '^\s*#define\s+PEEPO_VERSION_FOUR_PART\s+.*$',"#define PEEPO_VERSION_FOUR_PART $version4" `
+            | Set-Content $env:coreVersionHPath
+
+      - name: Get current date
+        id: get-date
+        run: |
+          $date = Get-Date -Format "yyyy-MM-dd"
+          echo "date=$date" >> $env:GITHUB_ENV
+
+      - name: Update CHANGELOG.md
+        run: |
+          $versions = Get-Content -Path $env:versionsPath
+          $date = $env:date
+          $changelogPath = "CHANGELOG.md"
+
+          :commit for ($c = 0; $c -lt $env:nMessages; ++$c) {
+              # (Re-)read CHANGELOG.md content as (re-)split lines
+              $changelog = try { Get-Content -Path $changelogPath -ErrorAction Stop } catch { "" }
+              # Ensure list type for []-indexing
+              if ($changelog.Count -eq 1) {
+                  $changelog = , $changelog
+              }
+
+              # Read the message as individual items
+              $commitBody = Get-Content -Path ($env:messagePathPrefix + $c) | Select-Object -Skip 1
+
+              # Remove empty lines from the message
+              $message = ($commitBody | Where-Object { $_ -ne "" }) -join "`n"
+
+              # Check if the version already exists
+              $version = $versions | Select-Object -Index $c
+              for ($i = 0; $i -lt $changelog.Count; ++$i) {
+                  if (-not ($changelog[$i] -match "## \[$version\]")) {
+                      continue
+                  }
+                  # Capture the existing content under the version heading
+                  if ($message) {
+                      # Append after the empty line (if exist) or the heading
+                      $di = ($changelog[$i + 1] -eq "")
+                      $changelog[$i + $di] += "`n$message"
+                  }
+
+                  # Write updated content back to CHANGELOG.md
+                  Set-Content -Path $changelogPath -Value $changelog
+
+                  continue commit
+              }
+
+              # Insert new version under '# Changelog'
+              for ($i = 0; $i -lt $changelog.Count; ++$i) {
+                  if (-not ($changelog[$i] -match "# Changelog")) {
+                      continue
+                  }
+                  # Append after the title, create empty line space
+                  $changelog[$i] += "`n`n## [$version] - $date (Beta)`n`n"
+                  if ($message) {
+                      $changelog[$i] += "$message`n"
+                  }
+                  # Remove original empty line space
+                  while (++$i -lt $changelog.Count) {
+                      if ($changelog[$i] -ne "") {
+                          break
+                      }
+                      $changelog[$i] = $null
+                  }
+
+                  # Write updated content back to CHANGELOG.md
+                  Set-Content -Path $changelogPath -Value $changelog
+
+                  continue commit
+              }
+
+              # No '# Changelog', do nothing
+              break commit
+          }
+
+      - name: Commit CHANGELOG.md and core_version.h changes
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add $env:coreVersionHPath
+          git add CHANGELOG.md
+          if ($env:versionLast -eq $env:versionFirst) {
+              git commit -m "Update changelog for version $env:versionLast"
+          } else {
+              git commit -m "Update changelog for versions $env:versionFirst to $env:versionLast"
+          }
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:${{ github.ref }}
+
+      - name: Get updated commit-ish
+        id: get-commitish
+        run: echo "commitish=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        uses: mukunku/tag-exists-action@v1.7.0
+        id: check-tag
+        with:
+          tag: v${{ env.version }}
+
+      - name: Create Release
+        if: steps.check-tag.outputs.exists == 'false' && env.version != ''
+        uses: softprops/action-gh-release@v3
+        with:
+          name: PeepoDrumKit v${{ env.version }}
+          tag_name: v${{ env.version }}
+          draft: false
+          prerelease: false
+          target_commitish: ${{ steps.get-commitish.outputs.commitish }}
+
+    outputs:
+      versionLast: ${{ steps.extract-versions.outputs.versionLast }}
+      commitish: ${{ steps.get-commitish.outputs.commitish }}
+
   build:
+    if: needs.check_version.result == 'success' || needs.check_version.result == 'skipped'
+
     strategy:
       fail-fast: false
       matrix:
@@ -26,11 +248,13 @@ jobs:
             arch: x86_64
 
     runs-on: ${{ matrix.runner }}
+    needs: check_version
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.check_version.result == 'success' && needs.check_version.outputs.commitish || github.sha }}
           submodules: recursive
           lfs: true
 
@@ -38,7 +262,7 @@ jobs:
         if: ${{ matrix.os == 'linux' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsoundio-dev libx11-dev
+          sudo apt-get install -y libsoundio-dev
 
       - name: Setup LLVM
         if: ${{ matrix.os != 'windows' }}
@@ -59,18 +283,48 @@ jobs:
         run: |
           xmake -v
 
-      - name: Bundle binaries and libraries
+      - name: Bundle assets and libraries
+        if: ${{ matrix.os != 'macosx' }}
         run: |
           xmake install -o build/${{ matrix.os }}/${{ matrix.arch }}/release/
 
-      - name: Clean up MacOSX build directory
+      - name: Clear up extra build files for MacOSX
         if: ${{ matrix.os == 'macosx' }}
         run: |
           rm build/${{ matrix.os }}/${{ matrix.arch }}/release/PeepoDrumKit
 
-      - name: Upload artifact (binary + assets)
+      - name: Observer build directories
+        run: |
+          pwd
+          ls -l build/${{ matrix.os }}/${{ matrix.arch }}/release/${{ matrix.os != 'macosx' && 'bin/' || '' }}
+
+      - name: Create artifact archive (binary + assets)
+        run: |
+          7z a ${{ github.workspace }}/peepodrumkit-${{ matrix.os }}-${{ matrix.arch }}.zip
+          pwsh -Command {
+            cd build/${{ matrix.os }}/${{ matrix.arch }}/release/${{ matrix.os != 'macosx' && 'bin/' || '' }} &&
+              7z u ${{ github.workspace }}/peepodrumkit-${{ matrix.os }}-${{ matrix.arch }}.zip * *.*
+          }
+          if (${{ matrix.os == 'macosx' && '$true' || '$false' }}) {
+            pwsh -Command {
+              cd ${{ format('build/{0}/{1}/release/PeepoDrumKit.app/', matrix.os, matrix.arch) }} &&
+                7z u ${{ github.workspace }}/peepodrumkit-${{ matrix.os }}-${{ matrix.arch }}.zip * *.*
+            }
+          }
+          7z u ${{ github.workspace }}/peepodrumkit-${{ matrix.os }}-${{ matrix.arch }}.zip *.md
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: peepodrumkit-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/${{ matrix.os }}/${{ matrix.arch }}/release/${{ matrix.os != 'macosx' && 'bin/' || '' }}
+          path: peepodrumkit-${{ matrix.os }}-${{ matrix.arch }}.zip
           if-no-files-found: error
+
+      - name: Upload All Builds for the Latest Release
+        if: needs.check_version.result == 'success'
+        uses: xresloader/upload-to-github-release@v1
+        with:
+          file: peepodrumkit-${{ matrix.os }}-${{ matrix.arch }}.zip
+          overwrite: true
+          tag_name: v${{ needs.check_version.outputs.versionLast }}
+          draft: false
